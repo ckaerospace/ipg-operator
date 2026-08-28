@@ -7,6 +7,10 @@ export type View = { x0: number; x1: number; y0: number; y1: number };
 
 export type Particle = { x: number; y: number; age: number };
 
+const N_PARTICLES = 720;
+const CROSS_SEC = 3.2;
+const N_FAINT = 4e-4;
+
 const FIELD_LABEL: Record<FieldId, string> = {
   t_ratio: "T / T0",
   n_ratio: "n / n0",
@@ -33,18 +37,29 @@ function fieldArray(plume: SolveResponse["plume"], field: FieldId): number[] {
   }
 }
 
-function fieldRange(arr: number[], n: number): [number, number] {
+function fieldRange(plume: SolveResponse["plume"], arr: number[]): [number, number] {
+  const { nx, ny } = plume;
   let lo = Infinity;
   let hi = -Infinity;
-  for (let i = 0; i < n; i++) {
-    const v = arr[i];
-    if (!Number.isFinite(v)) continue;
-    if (v < lo) lo = v;
-    if (v > hi) hi = v;
+  for (let j = 0; j < ny; j++) {
+    if (plume.y[j] < 0) continue;
+    for (let i = 0; i < nx; i++) {
+      const k = j * nx + i;
+      if (plume.n_ratio[k] < 1e-3) continue;
+      const v = arr[k];
+      if (!Number.isFinite(v)) continue;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
   }
   if (!Number.isFinite(lo)) return [0, 1];
   if (hi <= lo) return [lo, lo + 1];
   return [lo, hi];
+}
+
+/** Lift the navy end of the ramp so dots stay visible on the dark plot. */
+function fieldColor(t: number): [number, number, number] {
+  return colorize(0.3 + 0.7 * Math.min(1, Math.max(0, t)));
 }
 
 export function fitView(plume: SolveResponse["plume"], dc: number, dt: number, de: number): View {
@@ -215,7 +230,7 @@ function drawColorbar(
   const h = map.plot.h;
   for (let i = 0; i < h; i++) {
     const t = 1 - i / h;
-    const [r, g, b] = colorize(t);
+    const [r, g, b] = fieldColor(t);
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(x, y + i, w, 1);
   }
@@ -242,74 +257,49 @@ function fmtBar(v: number): string {
   return v.toFixed(2);
 }
 
-export type FieldCache = {
-  canvas: HTMLCanvasElement;
-  key: string;
-  lo: number;
-  hi: number;
-};
-
-export function fieldCacheKey(
-  cssW: number,
-  cssH: number,
-  field: FieldId,
-  solveId: string,
-  view: View,
-): string {
-  return `${cssW|0}x${cssH|0}:${field}:${solveId}:${view.x0}:${view.x1}:${view.y1}`;
+function exitX(plume: SolveResponse["plume"]): number {
+  for (let i = 0; i < plume.x.length; i++) {
+    if (plume.x[i] >= 0) return plume.x[i] + 1e-7;
+  }
+  return 1e-6;
 }
 
-export function ensureFieldCache(
-  cache: FieldCache | null,
-  map: WorldMap,
-  solve: SolveResponse,
-  field: FieldId,
-  key: string,
-): FieldCache {
-  if (cache && cache.key === key) return cache;
-  const pl = solve.plume;
-  const arr = fieldArray(pl, field);
-  const [lo, hi] = fieldRange(arr, pl.nx * pl.ny);
-  const imgW = Math.max(2, Math.floor(map.plot.w));
-  const imgH = Math.max(2, Math.floor(map.plot.h));
-  const canvas = cache?.canvas ?? document.createElement("canvas");
-  canvas.width = imgW;
-  canvas.height = imgH;
-  const ctx = canvas.getContext("2d")!;
-  const img = ctx.createImageData(imgW, imgH);
-  const data = img.data;
-  for (let py = 0; py < imgH; py++) {
-    const y = map.fromY(map.plot.t + py + 0.5);
-    for (let px = 0; px < imgW; px++) {
-      const x = map.fromX(map.plot.l + px + 0.5);
-      const idx = (py * imgW + px) * 4;
-      if (y < 0 || x < 0) {
-        data[idx] = 8;
-        data[idx + 1] = 14;
-        data[idx + 2] = 22;
-        data[idx + 3] = 255;
-        continue;
-      }
-      const v = sampleGrid(arr, pl.nx, pl.ny, pl.x, pl.y, x, y);
-      const n = sampleGrid(pl.n_ratio, pl.nx, pl.ny, pl.x, pl.y, x, y);
-      if (!Number.isFinite(v) || !Number.isFinite(n) || n < 1e-4) {
-        data[idx] = 10;
-        data[idx + 1] = 18;
-        data[idx + 2] = 28;
-        data[idx + 3] = 255;
-        continue;
-      }
-      const t = (v - lo) / (hi - lo);
-      const [r, g, b] = colorize(t);
-      const a = Math.min(1, 0.25 + 0.75 * Math.pow(Math.max(n, 0), 0.35));
-      data[idx] = Math.round(10 + (r - 10) * a);
-      data[idx + 1] = Math.round(18 + (g - 18) * a);
-      data[idx + 2] = Math.round(28 + (b - 28) * a);
-      data[idx + 3] = 255;
-    }
+function spawnExit(p: Particle, plume: SolveResponse["plume"]) {
+  p.x = exitX(plume);
+  const H = Math.max(plume.H, 1e-6);
+  p.y = Math.random() * H * 0.998;
+  p.age = 0;
+}
+
+function physStep(wallDt: number, plume: SolveResponse["plume"], view: View): number {
+  const U0 = Math.max(plume.U0, 1);
+  const L = Math.max(view.x1, plume.H);
+  return Math.min(Math.max(wallDt, 0), 0.05) * (L / (CROSS_SEC * U0));
+}
+
+function advect(p: Particle, plume: SolveResponse["plume"], dt: number, view: View, recycle = true): boolean {
+  const u = sampleGrid(plume.u, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
+  const v = sampleGrid(plume.v, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
+  if (!Number.isFinite(u) || !Number.isFinite(v)) {
+    if (recycle) spawnExit(p, plume);
+    return false;
   }
-  ctx.putImageData(img, 0, 0);
-  return { canvas, key, lo, hi };
+  p.x += u * dt;
+  p.y += v * dt;
+  p.age += dt;
+  if (p.y < 0) p.y = -p.y;
+  const n = sampleGrid(plume.n_ratio, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
+  const gone =
+    p.x > view.x1 ||
+    p.y > view.y1 ||
+    p.x < -0.05 * plume.H ||
+    !Number.isFinite(n) ||
+    n < N_FAINT;
+  if (gone) {
+    if (recycle) spawnExit(p, plume);
+    return false;
+  }
+  return true;
 }
 
 export function drawPlumeFrame(opts: {
@@ -325,8 +315,7 @@ export function drawPlumeFrame(opts: {
   de: number;
   particles: Particle[];
   probe: { x: number; y: number } | null;
-  fieldCache: FieldCache | null;
-}): { map: WorldMap; fieldCache: FieldCache | null } {
+}): { map: WorldMap } {
   const { ctx, cssW, cssH, dpr, solve, field, view, dc, dt, de, particles, probe } = opts;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
@@ -341,30 +330,32 @@ export function drawPlumeFrame(opts: {
   ctx.fillStyle = "#0c1a28";
   ctx.fillRect(map.plot.l, map.plot.t, map.plot.w, map.plot.h);
 
-  let nextCache = opts.fieldCache;
+  let lo = 0;
+  let hi = 1;
   if (solve) {
     const pl = solve.plume;
     const arr = fieldArray(pl, field);
-    const key = fieldCacheKey(cssW, cssH, field, `${pl.nx}x${pl.T0.toFixed(2)}x${pl.U0.toFixed(1)}`, view);
-    nextCache = ensureFieldCache(nextCache, map, solve, field, key);
-    const [lo, hi] = [nextCache.lo, nextCache.hi];
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(nextCache.canvas, map.plot.l, map.plot.t, map.plot.w, map.plot.h);
-
+    [lo, hi] = fieldRange(pl, arr);
+    const span = hi - lo || 1;
+    ctx.globalCompositeOperation = "lighter";
     for (const p of particles) {
-      if (p.y < 0 || p.x < 0) continue;
+      if (p.y < 0 || p.x < -1e-6) continue;
       const n = sampleGrid(pl.n_ratio, pl.nx, pl.ny, pl.x, pl.y, p.x, p.y);
-      if (!Number.isFinite(n) || n < 0.002) continue;
-      const v = sampleGrid(arr, pl.nx, pl.ny, pl.x, pl.y, p.x, p.y);
-      const t = Number.isFinite(v) ? (v - lo) / (hi - lo) : 0.5;
-      const [r, g, b] = colorize(t);
-      ctx.fillStyle = `rgba(${r},${g},${b},${0.45 + 0.5 * Math.min(1, n)})`;
-      const rad = 1.1 + 1.8 * Math.min(1, Math.sqrt(n));
+      if (!Number.isFinite(n) || n < N_FAINT) continue;
+      const fv = sampleGrid(arr, pl.nx, pl.ny, pl.x, pl.y, p.x, p.y);
+      const t = Number.isFinite(fv) ? (fv - lo) / span : 0.5;
+      const [r, g, b] = fieldColor(t);
+      const nn = Math.min(1, Math.max(0, n));
+      const alpha = 0.28 + 0.72 * Math.pow(nn, 0.35);
+      const rad = 0.6 + 1.9 * Math.sqrt(nn);
+      const px = map.toX(p.x);
+      const py = map.toY(p.y);
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
       ctx.beginPath();
-      ctx.arc(map.toX(p.x), map.toY(p.y), rad, 0, Math.PI * 2);
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
       ctx.fill();
     }
-    drawColorbar(ctx, map, nextCache.lo, nextCache.hi, FIELD_LABEL[field]);
+    ctx.globalCompositeOperation = "source-over";
   }
 
   drawNozzle(ctx, map, dc, dt, de, view);
@@ -384,6 +375,7 @@ export function drawPlumeFrame(opts: {
 
   ctx.restore();
   drawAxes(ctx, map, view, cssH);
+  if (solve) drawColorbar(ctx, map, lo, hi, FIELD_LABEL[field]);
 
   if (probe) {
     const px = map.toX(probe.x);
@@ -400,41 +392,37 @@ export function drawPlumeFrame(opts: {
     ctx.arc(px, py, 7, 0, Math.PI * 2);
     ctx.stroke();
   }
-  return { map, fieldCache: nextCache };
+  return { map };
 }
 
-export function seedParticles(plume: SolveResponse["plume"], n = 140): Particle[] {
-  const H = plume.H;
+export function seedParticles(plume: SolveResponse["plume"], view: View, n = N_PARTICLES): Particle[] {
   const out: Particle[] = [];
+  const transit = Math.max(view.x1, plume.H) / Math.max(plume.U0, 1);
+  const sub = 36;
   for (let i = 0; i < n; i++) {
-    const u = Math.random();
-    const y = Math.pow(u, 0.55) * H * 0.98;
-    out.push({ x: 0.002 + Math.random() * 0.01, y, age: Math.random() * 4 });
+    const p: Particle = { x: 0, y: 0, age: 0 };
+    spawnExit(p, plume);
+    const frac = (i + Math.random()) / n;
+    const dt = (frac * transit) / sub;
+    for (let k = 0; k < sub; k++) {
+      const ox = p.x;
+      const oy = p.y;
+      const oa = p.age;
+      if (!advect(p, plume, dt, view, false)) {
+        p.x = ox;
+        p.y = oy;
+        p.age = oa;
+        break;
+      }
+    }
+    out.push(p);
   }
   return out;
 }
 
-export function stepParticles(plume: SolveResponse["plume"], parts: Particle[], dt: number, view: View) {
-  const H = plume.H;
-  for (const p of parts) {
-    const u = sampleGrid(plume.u, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
-    const v = sampleGrid(plume.v, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
-    if (!Number.isFinite(u) || !Number.isFinite(v)) {
-      respawn(p, H);
-      continue;
-    }
-    p.x += u * dt;
-    p.y += v * dt;
-    p.age += dt;
-    if (p.y < 0) p.y = -p.y;
-    if (p.x > view.x1 || p.y > view.y1 || p.x < 0 || p.age > 0.12) respawn(p, H);
-  }
-}
-
-function respawn(p: Particle, H: number) {
-  p.x = 0.001 + Math.random() * 0.008;
-  p.y = Math.pow(Math.random(), 0.55) * H * 0.98;
-  p.age = 0;
+export function stepParticles(plume: SolveResponse["plume"], parts: Particle[], wallDt: number, view: View) {
+  const dt = physStep(wallDt, plume, view);
+  for (const p of parts) advect(p, plume, dt, view);
 }
 
 export function sampleProbe(solve: SolveResponse, x: number, y: number): ProbeSample | null {

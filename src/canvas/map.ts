@@ -160,6 +160,7 @@ export function drawCharacteristics(opts: {
     }
   });
 
+  const powerLabels: { x: number; y: number; text: string }[] = [];
   ch.power_isolines.forEach((iso) => {
     const pts = clipLine(iso.pinj_Pa, iso.hinj_MJ_kg);
     if (pts.length < 2) return;
@@ -168,7 +169,7 @@ export function drawCharacteristics(opts: {
     ctx.setLineDash([5, 4]);
     ctx.beginPath();
     let started = false;
-    let top: { x: number; y: number; h: number } | null = null;
+    const vis: { x: number; y: number }[] = [];
     for (const pt of pts) {
       if (pt.p < view.p0 || pt.p > view.p1 || pt.h < view.h0 || pt.h > view.h1) {
         started = false;
@@ -180,16 +181,13 @@ export function drawCharacteristics(opts: {
         ctx.moveTo(x, y);
         started = true;
       } else ctx.lineTo(x, y);
-      if (!top || pt.h > top.h) top = { x, y, h: pt.h };
+      vis.push({ x, y });
     }
     ctx.stroke();
     ctx.setLineDash([]);
-    if (top && iso.power_W != null) {
-      ctx.fillStyle = "rgba(232,238,245,0.9)";
-      ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(fmtPower(iso.power_W), top.x, top.y - 3);
+    if (iso.power_W != null) {
+      const spot = insetLabelSpot(vis, lay, 12);
+      if (spot) powerLabels.push({ x: spot.x + 3, y: spot.y - 1, text: fmtPower(iso.power_W) });
     }
   });
 
@@ -232,6 +230,8 @@ export function drawCharacteristics(opts: {
 
   ctx.restore();
 
+  drawPowerLabels(ctx, powerLabels, lay);
+
   ctx.strokeStyle = "rgba(232,238,245,0.35)";
   ctx.lineWidth = 1;
   ctx.strokeRect(lay.l, lay.t, lay.w, lay.h);
@@ -264,6 +264,54 @@ export function drawCharacteristics(opts: {
   ctx.fillText(`solid ṁ ${unit}   dashed coupled P`, lay.l, 4);
 
   return lay;
+}
+
+function insetLabelSpot(
+  vis: { x: number; y: number }[],
+  lay: MapLayout,
+  pad: number,
+): { x: number; y: number } | null {
+  if (!vis.length) return null;
+  const x0 = lay.l + pad;
+  const x1 = lay.l + lay.w - pad;
+  const y0 = lay.t + pad;
+  const y1 = lay.t + lay.h - pad;
+  const inset = vis.filter((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1);
+  const pool = inset.length ? inset : vis;
+  const pick = pool[Math.min(pool.length - 1, Math.max(0, Math.floor(pool.length * 0.55)))];
+  return {
+    x: Math.min(Math.max(pick.x, x0), x1),
+    y: Math.min(Math.max(pick.y, y0), y1),
+  };
+}
+
+function drawPowerLabels(
+  ctx: CanvasRenderingContext2D,
+  spots: { x: number; y: number; text: string }[],
+  lay: MapLayout,
+): void {
+  if (!spots.length) return;
+  spots.sort((a, b) => a.y - b.y || a.x - b.x);
+  ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = "rgba(232,238,245,0.92)";
+  const yMax = lay.t + lay.h - 2;
+  for (let i = 0; i < spots.length; i++) {
+    const a = spots[i];
+    for (let j = 0; j < i; j++) {
+      const b = spots[j];
+      if (Math.abs(a.x - b.x) < 48 && Math.abs(a.y - b.y) < 12) {
+        a.y = b.y + 12;
+        if (a.y > yMax) {
+          a.y = b.y;
+          a.x = b.x + 48;
+        }
+      }
+    }
+    a.y = Math.min(a.y, yMax);
+    ctx.fillText(a.text, a.x, a.y);
+  }
 }
 
 function niceStep(span: number): number {
@@ -307,16 +355,52 @@ export function drawComposition(opts: {
   ctx.clearRect(0, 0, cssW, cssH);
   ctx.fillStyle = "#0b1218";
   ctx.fillRect(0, 0, cssW, cssH);
+
+  ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+  const keys = Object.keys(ch.chamber.x).filter((key) => Math.max(...ch.chamber.x[key]) >= 0.001);
+  const gap = 10;
+  const rowH = 12;
   const l = 40;
   const r = 8;
-  const t = 16;
   const b = 24;
+  const maxLegendW = Math.max(40, cssW - l - r);
+  const rows: string[][] = [];
+  let cur: string[] = [];
+  let curW = 0;
+  for (const key of keys) {
+    const tw = ctx.measureText(moleLabel(key)).width + gap;
+    if (cur.length > 0 && curW + tw > maxLegendW) {
+      rows.push(cur);
+      cur = [key];
+      curW = tw;
+    } else {
+      cur.push(key);
+      curW += tw;
+    }
+  }
+  if (cur.length) rows.push(cur);
+
+  const legendTop = 4;
+  const t = legendTop + Math.max(1, rows.length) * rowH + 2;
   const w = Math.max(10, cssW - l - r);
   const h = Math.max(10, cssH - t - b);
   const h0 = ch.axes.hinj_MJ_kg[0] ?? ch.hinj_MJ_kg[0] ?? 0;
   const h1 = ch.axes.hinj_MJ_kg[1] ?? ch.hinj_MJ_kg[ch.hinj_MJ_kg.length - 1] ?? 40;
   const toX = (hv: number) => l + ((hv - h0) / (h1 - h0)) * w;
   const toY = (x: number) => t + h - x * h;
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  rows.forEach((row, ri) => {
+    let lx = l;
+    const ly = legendTop + ri * rowH;
+    for (const key of row) {
+      ctx.fillStyle = speciesColor(key);
+      const lab = moleLabel(key);
+      ctx.fillText(lab, lx, ly);
+      lx += ctx.measureText(lab).width + gap;
+    }
+  });
 
   ctx.fillStyle = "#101820";
   ctx.fillRect(l, t, w, h);
@@ -342,7 +426,6 @@ export function drawComposition(opts: {
   }
   ctx.setLineDash([]);
 
-  const keys = Object.keys(ch.chamber.x).filter((key) => Math.max(...ch.chamber.x[key]) >= 0.001);
   for (const key of keys) {
     const arr = ch.chamber.x[key];
     ctx.strokeStyle = speciesColor(key);
@@ -375,18 +458,4 @@ export function drawComposition(opts: {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillText("h_inj  [MJ/kg]", l + w / 2, cssH - 12);
-  ctx.textAlign = "left";
-  ctx.fillText("mole fraction vs h_inj", l, 3);
-
-  let lx = l;
-  const ly = t - 1;
-  ctx.textBaseline = "bottom";
-  ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
-  for (const key of keys) {
-    ctx.fillStyle = speciesColor(key);
-    const lab = moleLabel(key);
-    ctx.fillText(lab, lx, ly);
-    lx += ctx.measureText(lab).width + 10;
-    if (lx > l + w - 20) break;
-  }
 }
