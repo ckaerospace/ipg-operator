@@ -305,20 +305,16 @@ select {
 
 .plume-wrap {
   flex: 1 1 auto;
-  min-height: 55vh;
+  min-height: 40vh;
   position: relative;
 }
-.plume-busy {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(7, 9, 13, 0.55);
+.plume-status {
+  flex: 0 0 auto;
+  padding: 4px 12px;
+  background: #1a1608;
   color: var(--warn);
-  font-size: 15px;
-  pointer-events: none;
-  z-index: 2;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
 }
 .plume-wrap canvas,
 .map-plot canvas,
@@ -332,14 +328,19 @@ select {
 .toolbar {
   flex: 0 0 auto;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 6px 10px;
   overflow-x: auto;
   scrollbar-width: none;
 }
 .toolbar::-webkit-scrollbar {
   display: none;
+}
+.toolbar .chip {
+  min-height: 36px;
+  padding: 0 11px;
+  font-size: 13px;
 }
 .caption {
   flex: 0 0 auto;
@@ -356,52 +357,55 @@ select {
 }
 
 .info-btn {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 36px;
+  min-height: 36px;
+  flex: 0 0 auto;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--chip);
   color: var(--teal);
   font-weight: 700;
+  cursor: pointer;
+}
+.info-btn.on {
+  background: var(--chip-on);
+  border-color: var(--teal);
 }
 
-.sheet-back {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 5;
-}
-.sheet {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 6;
-  background: #121820;
+.probe-panel {
+  flex: 0 0 auto;
+  padding: 6px 12px 4px;
+  background: #0c1218;
   border-top: 1px solid var(--line);
-  border-radius: 16px 16px 0 0;
-  padding: 12px 16px calc(12px + var(--safe-b));
-  max-height: 70%;
-  overflow: auto;
 }
-.sheet h2 {
-  margin: 0 0 8px;
-  font-size: 15px;
-  font-weight: 650;
+.probe-hint {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 0 4px;
 }
 .probe-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 10px;
 }
 .probe-grid .cell .l {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
 }
 .probe-grid .cell .v {
-  font-size: 20px;
+  font-size: 15px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.legend-inline {
+  margin-top: 8px;
+  max-height: 16vh;
+  overflow: auto;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .map-plot {
