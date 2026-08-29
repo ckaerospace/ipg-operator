@@ -31,7 +31,7 @@ export function RefsList({
 export function ManualLink() {
   return (
     <a className="model-notes" href="/model">
-      Manual
+      Model
     </a>
   );
 }

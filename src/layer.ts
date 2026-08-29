@@ -8,7 +8,7 @@ export function parseLayer(raw: string | null | undefined): AppLayer {
   return DEFAULT_LAYER;
 }
 
-/** Solver chrome: Manual is not a solve layer. */
+/** Solver chrome: the Model page (`layer=manual`) is not a solve layer. */
 export function operatorLayer(layer: AppLayer): "thesis" | "advanced" {
   return layer === "advanced" ? "advanced" : "thesis";
 }
@@ -42,5 +42,5 @@ export function goLayer(layer: AppLayer): void {
 export const LAYER_LABEL: Record<AppLayer, string> = {
   thesis: "Thesis",
   advanced: "Advanced",
-  manual: "Manual",
+  manual: "Model",
 };

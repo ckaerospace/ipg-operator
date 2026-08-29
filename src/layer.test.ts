@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAYER, operatorLayer, parseLayer } from "./layer";
+import { DEFAULT_LAYER, LAYER_LABEL, operatorLayer, parseLayer } from "./layer";
 import { BUG_REPORT_URL, routeForPath } from "./routes";
 import { buildSolveBody, solveBodyJson } from "./solveBody";
 import type { SolveInput } from "./solveBody";
@@ -26,6 +26,8 @@ describe("layers", () => {
     expect(parseLayer(undefined)).toBe("thesis");
     expect(parseLayer("nope")).toBe("thesis");
     expect(operatorLayer("manual")).toBe("thesis");
+    expect(parseLayer("manual")).toBe("manual");
+    expect(LAYER_LABEL.manual).toBe("Model");
     expect(operatorLayer("thesis")).toBe("thesis");
   });
 
@@ -96,7 +98,7 @@ describe("solve body", () => {
 });
 
 describe("routes", () => {
-  it("has a Manual route at /model", () => {
+  it("has a Model notes route at /model", () => {
     expect(routeForPath("/model")).toBe("model");
     expect(routeForPath("/model/")).toBe("model");
     expect(routeForPath("/")).toBe("app");

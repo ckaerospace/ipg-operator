@@ -166,14 +166,43 @@ select {
 }
 
 .layer-bar {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
   margin-bottom: 6px;
 }
-.layer-bar .chip {
+.layer-modes-block {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.layer-modes-block .h-label {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+.layer-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.layer-modes .chip {
   width: 100%;
   justify-content: center;
+}
+.model-page-link {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.model-page-link.on {
+  color: var(--teal);
 }
 .locked-note {
   background: var(--elev);

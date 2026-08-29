@@ -15,7 +15,7 @@ import { BugReportLink, RefsList } from "./RefsList";
 
 export function ModelPage() {
   useEffect(() => {
-    document.title = "Plasma wind tunnel · Manual";
+    document.title = "Plasma wind tunnel · Model";
   }, []);
   return (
     <div className="paper">
@@ -29,7 +29,7 @@ export function ModelPage() {
         >
           Plasma wind tunnel
         </a>
-        <span>Manual</span>
+        <span>Model</span>
       </header>
       <div className="paper-layers">
         <LayerBar current="manual" />
@@ -37,7 +37,8 @@ export function ModelPage() {
       <article className="paper-body">
         <h1>Plume model</h1>
         <p className="lede">
-          Operator note for the three layers. This page is not a solver. Chemistry is remote NASA CEA (Gordon &amp;
+          Operator note for Thesis and Advanced. Thesis and Advanced are the only solve-mode chips. Model is a page
+          link (not a third solve chip). This page is not a solver. Chemistry is remote NASA CEA (Gordon &amp;
           McBride, NASA RP-1311). This PWA does not reimplement CEA, Navier–Stokes, or DSMC. PWK3 is the IRS inductive
           plasma wind tunnel. Operator chrome is <span className="mono">Plasma wind tunnel · {"{generator}"}</span>.
         </p>
@@ -110,8 +111,8 @@ export function ModelPage() {
           re-layout on the current view and skip the Mach disk / “shock overlay” boxes. The station grid has a real
           row gap. The empty-state line (“Empty nozzle field — Run a point to fill the jet”) shows only when there is
           no solve. After a solve there is no slogan and no hinj footnote on the Plume tab — those facts stay in this
-          Manual (§1, §7). The readout is clipped inside the Plume pane and does not cover Setup / Map
-          tabs or the layer chips. The Map <i>p</i>
+          Model (§1, §7). The readout is clipped inside the Plume pane and does not cover Setup / Map
+          tabs or the Thesis / Advanced chips. The Map <i>p</i>
           <sub>inj</sub>–<i>h</i>
           <sub>inj</sub> figure pinches the same way (zoom-out stays the computed axes — this PWA does not invent a
           larger domain). Extra ṁ and power isolines are 1–2–5 traces of the computed <i>k</i>(<i>h</i>)×<i>p</i>
@@ -269,7 +270,7 @@ export function ModelPage() {
         <h2>9. References</h2>
         <RefsList ids={ADVANCED_REF_IDS} />
         <p className="paper-foot">
-          Thesis and Advanced return to Setup. Plume (i) links here as Manual. <BugReportLink />
+          Thesis and Advanced return to Setup. Plume (i) links here as Model. <BugReportLink />
         </p>
       </article>
     </div>
