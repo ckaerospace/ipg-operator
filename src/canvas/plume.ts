@@ -3,6 +3,7 @@ import { K_EV } from "../format";
 import { parseBarrel, type Xy } from "../physics";
 import { colorize } from "./color";
 import {
+  centerlineIsoLevels,
   fieldIsolines,
   fmtIsoValue,
   niceIsoLevels,
@@ -80,22 +81,21 @@ export function shockFitExtents(plume: SolveResponse["plume"]): { x1: number; y1
   return { x1: xm * 1.2, y1: Math.max(r * 1.2, 1e-4) };
 }
 
-/** Expand the shorter span so the world window is square. y0 stays 0. Caps if the grid is smaller. */
+/** Square world with y0 = −y1 (full jet). Expand x or |y| so dx === dy. Caps if the grid is smaller. */
 export function squareWorld(view: View, capX?: number, capY?: number): View {
   const x0 = view.x0;
   let x1 = view.x1;
-  const y0 = 0;
-  let y1 = Math.max(view.y1, 1e-6);
-  const side = Math.max(x1 - x0, y1 - y0);
-  if (y1 - y0 < side) {
-    y1 = side;
-    if (typeof capY === "number" && Number.isFinite(capY) && capY > 0) y1 = Math.min(y1, capY);
-  }
-  if (x1 - x0 < side) {
-    x1 = x0 + side;
+  const capHalf =
+    typeof capY === "number" && Number.isFinite(capY) && capY > 0 ? capY : Infinity;
+  let yHalf = Math.min(Math.max(Math.abs(view.y1), Math.abs(view.y0), 1e-6), capHalf);
+  const dx0 = x1 - x0;
+  if (2 * yHalf < dx0) yHalf = Math.min(dx0 / 2, capHalf);
+  const dy = 2 * yHalf;
+  if (x1 - x0 < dy) {
+    x1 = x0 + dy;
     if (typeof capX === "number" && Number.isFinite(capX) && capX > 0) x1 = Math.min(x1, capX);
   }
-  return { x0, x1, y0, y1 };
+  return { x0, x1, y0: -yHalf, y1: yHalf };
 }
 
 export function fitView(plume: SolveResponse["plume"], dc: number, dt: number, de: number): View {
@@ -155,7 +155,7 @@ export type WorldMap = {
 };
 
 export function worldMap(w: number, h: number, view: View): WorldMap {
-  const padL = 46;
+  const padL = 50;
   const padR = 52;
   const padT = 16;
   const padB = 28;
@@ -192,41 +192,47 @@ function drawNozzle(
   const xThroat = -Math.max(view.x1 * 0.04, re * 1.1);
   const xConv = xThroat - Math.max(re * 1.6, (rc - rt) * 2);
   const xCh = view.x0;
-  const pts = [
-    [xCh, 0],
-    [xCh, rc],
-    [xConv, rc],
-    [xThroat, rt],
-    [xExit, re],
-    [xExit, Math.max(view.y1 * 1.2, re * 4)],
-    [xCh - 0.01, Math.max(view.y1 * 1.2, re * 4)],
-  ];
-  ctx.beginPath();
-  pts.forEach(([x, y], i) => {
-    const X = map.toX(x);
-    const Y = map.toY(y);
-    if (i === 0) ctx.moveTo(X, Y);
-    else ctx.lineTo(X, Y);
-  });
-  ctx.closePath();
-  ctx.fillStyle = "#0b1016";
-  ctx.fill();
+  const fillSide = (sign: 1 | -1) => {
+    const yOut = sign > 0 ? Math.max(view.y1 * 1.15, re * 4) : Math.min(view.y0 * 1.15, -re * 4);
+    const pts = [
+      [xCh, yOut],
+      [xCh, sign * rc],
+      [xConv, sign * rc],
+      [xThroat, sign * rt],
+      [xExit, sign * re],
+      [xExit, yOut],
+    ];
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => {
+      const X = map.toX(x);
+      const Y = map.toY(y);
+      if (i === 0) ctx.moveTo(X, Y);
+      else ctx.lineTo(X, Y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = "#0b1016";
+    ctx.fill();
+  };
+  fillSide(1);
+  fillSide(-1);
   ctx.strokeStyle = "#2ee6c5";
   ctx.lineWidth = 1.6;
-  ctx.beginPath();
   const wall = [
     [xCh, rc],
     [xConv, rc],
     [xThroat, rt],
     [xExit, re],
   ];
-  wall.forEach(([x, y], i) => {
-    const X = map.toX(x);
-    const Y = map.toY(y);
-    if (i === 0) ctx.moveTo(X, Y);
-    else ctx.lineTo(X, Y);
-  });
-  ctx.stroke();
+  for (const sign of [1, -1] as const) {
+    ctx.beginPath();
+    wall.forEach(([x, y], i) => {
+      const X = map.toX(x);
+      const Y = map.toY(sign * y);
+      if (i === 0) ctx.moveTo(X, Y);
+      else ctx.lineTo(X, Y);
+    });
+    ctx.stroke();
+  }
   ctx.strokeStyle = "rgba(46,230,197,0.35)";
   ctx.beginPath();
   ctx.moveTo(map.toX(xCh), map.toY(0));
@@ -270,18 +276,24 @@ function drawDisk(
   const { x, r } = disk;
   if (!(r > 0) || !Number.isFinite(x)) return;
   const X = map.toX(x);
-  const Y0 = map.toY(0);
-  const Yr = map.toY(r);
-  const hh = Math.abs(Yr - Y0);
+  const Y0 = map.toY(-r);
+  const Y1 = map.toY(r);
+  const hh = Math.abs(Y1 - Y0);
   const rx = Math.max(2.4, Math.abs(map.toX(x + Math.min(r * 0.18, 0.004)) - X));
-  const cy = (Y0 + Yr) / 2;
+  const cy = map.toY(0);
 
   ctx.save();
   if (bow.length >= 2) {
     ctx.strokeStyle = "rgba(255, 168, 120, 0.9)";
     ctx.lineWidth = 1.15;
     ctx.setLineDash([]);
-    strokeXy(ctx, map, bow.filter((p) => p.y >= -1e-9));
+    const upper = bow.filter((p) => p.y >= -1e-9);
+    strokeXy(ctx, map, upper);
+    strokeXy(
+      ctx,
+      map,
+      upper.map((p) => ({ x: p.x, y: -p.y })),
+    );
   }
 
   ctx.fillStyle = "rgba(214, 222, 232, 0.92)";
@@ -291,7 +303,7 @@ function drawDisk(
   ctx.ellipse(X, cy, rx, Math.max(2, hh / 2), 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  ctx.fillRect(X - Math.max(1.2, rx * 0.35), Math.min(Y0, Yr), Math.max(2.4, rx * 0.7), hh);
+  ctx.fillRect(X - Math.max(1.2, rx * 0.35), Math.min(Y0, Y1), Math.max(2.4, rx * 0.7), hh);
   ctx.restore();
 }
 
@@ -355,6 +367,11 @@ function drawAxes(
   ctx.strokeStyle = "rgba(232,238,245,0.12)";
   ctx.lineWidth = 1;
   ctx.strokeRect(map.plot.l, map.plot.t, map.plot.w, map.plot.h);
+  ctx.strokeStyle = "rgba(46,230,197,0.22)";
+  ctx.beginPath();
+  ctx.moveTo(map.plot.l, map.toY(0));
+  ctx.lineTo(map.plot.l + map.plot.w, map.toY(0));
+  ctx.stroke();
   ctx.fillStyle = "#8b9aab";
   ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
   ctx.textAlign = "center";
@@ -374,10 +391,10 @@ function drawAxes(
   ctx.restore();
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  const ny = 3;
+  const ny = 4;
   for (let i = 0; i <= ny; i++) {
     const y = view.y0 + ((view.y1 - view.y0) * i) / ny;
-      ctx.fillText(`${Math.round(y * 1000)}`, map.plot.l - 6, map.toY(y));
+    ctx.fillText(`${Math.round(y * 1000)}`, map.plot.l - 6, map.toY(y));
   }
 }
 
@@ -449,11 +466,12 @@ function drawFieldMap(
       data[off + 1] = bgG;
       data[off + 2] = bgB;
       data[off + 3] = 255;
-      if (x < 0 || y < 0) continue;
-      const n = sampleGrid(plume.n_ratio, plume.nx, plume.ny, plume.x, plume.y, x, y);
+      if (x < 0) continue;
+      const yy = Math.abs(y);
+      const n = sampleGrid(plume.n_ratio, plume.nx, plume.ny, plume.x, plume.y, x, yy);
       const a = fieldMaskAlpha(n);
       if (a <= 0) continue;
-      const fv = sampleGrid(arr, plume.nx, plume.ny, plume.x, plume.y, x, y);
+      const fv = sampleGrid(arr, plume.nx, plume.ny, plume.x, plume.y, x, yy);
       if (!Number.isFinite(fv)) continue;
       const [r, g, b] = colorize((fv - lo) / span);
       data[off] = Math.round(bgR + (r - bgR) * a);
@@ -485,18 +503,25 @@ function drawIsolines(
   de: number,
 ) {
   const arr = fieldArray(plume, field);
-  const levels = niceIsoLevels(lo, hi);
-  if (!levels.length) return;
-  const segs = fieldIsolines(plume.x, plume.y, arr, plume.nx, plume.ny, levels, plume.n_ratio);
+  const levels =
+    centerlineIsoLevels({
+      xs: plume.x,
+      ys: plume.y,
+      field: arr,
+      nx: plume.nx,
+      ny: plume.ny,
+      mask: plume.n_ratio,
+      x0: Math.max(0, view.x0),
+      x1: view.x1,
+    }) || [];
+  const used = levels.length ? levels : niceIsoLevels(lo, hi);
+  if (!used.length) return;
+  const segs = fieldIsolines(plume.x, plume.y, arr, plume.nx, plume.ny, used, plume.n_ratio);
   const chains = stitchIso(segs);
-  ctx.save();
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.setLineDash([]);
-  for (const chain of chains) {
-    if (chain.pts.length < 2) continue;
+  const strokeChain = (pts: { x: number; y: number }[]) => {
+    if (pts.length < 2) return;
     ctx.beginPath();
-    chain.pts.forEach((p, i) => {
+    pts.forEach((p, i) => {
       const X = map.toX(p.x);
       const Y = map.toY(p.y);
       if (i === 0) ctx.moveTo(X, Y);
@@ -508,13 +533,22 @@ function drawIsolines(
     ctx.strokeStyle = "rgba(244, 248, 252, 0.82)";
     ctx.lineWidth = 1.05;
     ctx.stroke();
+  };
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.setLineDash([]);
+  for (const chain of chains) {
+    strokeChain(chain.pts);
+    strokeChain(chain.pts.map((p) => ({ x: p.x, y: -p.y })));
   }
   const re = de / 2000;
-  const labels = pickIsoLabels(chains, levels, {
+  const yHalf = Math.max(view.y1, -view.y0);
+  const labels = pickIsoLabels(chains, used, {
     xMin: Math.max(re * 1.6, (view.x1 - view.x0) * 0.06, 0.004),
-    yMin: Math.max(re * 0.15, (view.y1 - view.y0) * 0.04),
+    yMin: Math.max(re * 0.15, yHalf * 0.06),
     xMax: view.x1 - (view.x1 - view.x0) * 0.08,
-    yMax: view.y1 - (view.y1 - view.y0) * 0.08,
+    yMax: yHalf * 0.92,
     toPx: (x, y) => ({ x: map.toX(x), y: map.toY(y) }),
     fmt: fmtIsoValue,
   });
@@ -578,7 +612,7 @@ export function drawPlumeFrame(opts: {
 
   if (!solve) {
     const tx = map.toX(Math.max(view.x1 * 0.42, 4 * (de / 2000)));
-    const ty = map.toY(view.y1 * 0.62);
+    const ty = map.toY(Math.max(view.y1 * 0.35, de / 2000));
     ctx.fillStyle = "rgba(196, 210, 222, 0.92)";
     ctx.font = "13px ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";

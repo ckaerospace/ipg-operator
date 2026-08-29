@@ -37,13 +37,13 @@ Copy `.env` or export `VITE_API` before `npm run dev`. Endpoints used:
 
 Three layers (persisted in `localStorage` as `ipg-layer`):
 
-- **Thesis** (default) — always `plume_mode: collisionless`. No tank pressure, NPR, or shock overlay. Plume is a bilinear color map of the selected field (T/T0, n/n0, h_tot, U, M, E) with a few isolines of that same grid.
+- **Thesis** (default) — always `plume_mode: collisionless`. No tank pressure, NPR, or shock overlay. Plume is a full (upper and lower) bilinear color map of the selected field (T/T0, n/n0, h_tot, U, M, E) with isolines of that same grid, spaced from the centerline so they run out toward xmax.
 - **Advanced** — Physics (Auto / Collisionless / Sudden-freeze), `p_tank_Pa`, NPR / regime, barrel + Mach disk stroked on top of that field when the API sets `shock_applied`. Object None (default) or Disk.
 - **Manual** — scientific note at `/model` (not a solver). Linked from the layer control and Plume (i).
 
 Header chrome is `Plasma wind tunnel · {generator}` (for example `Plasma wind tunnel · IPG6-S`).
 
-A **probe disk** sits on the centerline in Thesis (tap the jet; R is fixed at 20 mm, no x/R chrome). In Advanced, Object None hides the body and omits `probe_*` on the request; Object Disk restores the placeable plate with x, disk R (5–50 mm, default 20), and Tw. Thesis posts a collisionless plate; Advanced draws a bow if the API returns `bow_xy`. Request fields: `probe_x_m`, `probe_r_mm`, `probe_Tw_K`. Response `plume.probe` fills p, q, Kn_obj, kinetic|continuum. If the live API rejects those fields (422), the disk is still drawn and incident n, T, U come from the grid sample.
+A **probe disk** sits on the centerline in Thesis (tap the jet; R is fixed at 20 mm, no x/R chrome). In Advanced, Object None hides the body and omits `probe_*` on the request; Object Disk restores the placeable plate with x, disk R (5–50 mm, default 20), and Tw. Thesis posts a collisionless plate; Advanced draws a bow if the API returns `bow_xy`. After a tap the station grid under the plot shows x, T, n/n0, U, Mach, Kn, E (½ m U² in eV), E_O, e_th (1.5 kT), and h_tot, plus face p, q, Kn_obj, and regime when a disk is in play (p and q fill after Run). Request fields: `probe_x_m`, `probe_r_mm`, `probe_Tw_K`. Response `plume.probe` fills p, q, Kn_obj, kinetic|continuum. If the live API rejects those fields (422), the disk is still drawn and incident n, T, U, E come from the grid sample.
 
 **Copy link** on Setup encodes the current point:
 

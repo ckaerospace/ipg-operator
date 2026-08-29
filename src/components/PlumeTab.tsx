@@ -303,6 +303,10 @@ export function PlumeTab({
               <Cell l="U" v={sample ? `${fmt(sample.U, 0)} m/s` : "—"} />
               <Cell l="Mach" v={sample ? fmtFixed(sample.mach, 2) : "—"} />
               <Cell l="Kn" v={sample ? sample.kn.toPrecision(3) : "—"} />
+              <Cell l="E" v={sample ? `${fmt(sample.e_kin, 2)} eV` : "—"} />
+              <Cell l="E_O" v={sample?.e_O == null ? "—" : `${fmt(sample.e_O, 2)} eV`} />
+              <Cell l="e_th" v={sample ? `${fmt(sample.e_th, 2)} eV` : "—"} />
+              <Cell l="h_tot" v={sample ? `${fmt(sample.h_tot, 2)} MJ/kg` : "—"} />
               <Cell l="p" v={pVal == null ? "—" : fmtPa(pVal)} />
               <Cell l="q" v={qVal == null ? "—" : fmtHeatFlux(qVal)} />
               <Cell l="Kn_obj" v={knObj == null ? "—" : knObj.toPrecision(2)} />
@@ -319,7 +323,8 @@ export function PlumeTab({
               T0 is the frozen nozzle-exit translational temperature (CEA station 4), not the chamber. U0 is the frozen
               exit bulk velocity. Thesis is the Khasawneh–Cai collisionless jet plus a diffuse plate. Color is a bilinear
               sample of the selected field on the nx×ny grid; faint n/n0 is masked so the far field stays dark. Thin
-              isolines are marching squares of that same grid (not a second solve). E is directed ½ m U² in eV.
+              isolines are marching squares of that same grid, spaced from the centerline (not a second solve). E is
+              directed ½ m U² in eV; E_O is the O-atom share of that directed energy; e_th is 1.5 kT.
             </p>
             <p>
               Station: tap the jet on the centerline. Incident T, n, U, M, Kn update as you drag. Face p and q fill

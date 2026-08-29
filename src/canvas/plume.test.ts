@@ -73,9 +73,9 @@ describe("shock overlay framing", () => {
     expect(view.x0).toBeLessThan(0);
     expect(view.x1).toBeCloseTo(0.433 * 1.2, 5);
     expect(view.x1).toBeLessThan(0.8);
-    expect(view.y0).toBe(0);
-    // Shock-fit y is ~0.1; square would grow y to match x, then ymax_m = 0.4 caps it.
-    expect(view.y1).toBeCloseTo(0.4, 6);
+    expect(view.y0).toBeCloseTo(-view.y1, 8);
+    expect(view.y1).toBeGreaterThan(0.2);
+    expect(view.y1).toBeLessThanOrEqual(0.4);
   });
 
   it("puts the Mach disk on a readable fraction of a phone-width square canvas", () => {
@@ -88,19 +88,20 @@ describe("shock overlay framing", () => {
   });
 
   it("maps millimetres isotropically and draws a square plot in a square canvas", () => {
-    const view = { x0: 0, x1: 0.4, y0: 0, y1: 0.4 };
+    const view = { x0: 0, x1: 0.4, y0: -0.2, y1: 0.2 };
     const map = worldMap(390, 390, view);
     expect(map.plot.w).toBeCloseTo(map.plot.h, 5);
     const o = { x: map.toX(0), y: map.toY(0) };
     const dx = map.toX(0.05) - o.x;
     const dy = o.y - map.toY(0.05);
     expect(dx).toBeCloseTo(dy, 5);
+    expect(map.toY(-0.05) - map.toY(0.05)).toBeCloseTo(2 * dy, 5);
     expect(map.toX(view.x1) - map.toX(view.x0)).toBeCloseTo(map.plot.w);
     expect(map.toY(view.y0) - map.toY(view.y1)).toBeCloseTo(map.plot.h);
   });
 
   it("letterboxes instead of stretching when the canvas is not square", () => {
-    const view = { x0: 0, x1: 0.4, y0: 0, y1: 0.4 };
+    const view = { x0: 0, x1: 0.4, y0: -0.2, y1: 0.2 };
     const map = worldMap(390, 260, view);
     expect(map.plot.w).toBeCloseTo(map.plot.h, 5);
     const o = { x: map.toX(0), y: map.toY(0) };
@@ -113,30 +114,31 @@ describe("shock overlay framing", () => {
     expect(shockFitExtents(gridPlume({ x_mach_disk_m: null }))).toBeNull();
     const clean = fitView(gridPlume({ shock_applied: false, mode: "collisionless" }), 84, 50, 50);
     expect(clean.x1).toBeGreaterThan(1);
+    expect(clean.y0).toBeCloseTo(-clean.y1, 8);
   });
 });
 
 describe("square world window", () => {
-  it("expands the shorter span and keeps y0 = 0", () => {
+  it("mirrors y about the centerline and keeps dx === dy", () => {
     expect(squareWorld({ x0: 0, x1: 0.5, y0: 0, y1: 0.12 })).toEqual({
       x0: 0,
       x1: 0.5,
-      y0: 0,
-      y1: 0.5,
+      y0: -0.25,
+      y1: 0.25,
     });
     expect(squareWorld({ x0: -0.1, x1: 0.4, y0: 0, y1: 0.2 })).toEqual({
       x0: -0.1,
       x1: 0.4,
-      y0: 0,
-      y1: 0.5,
+      y0: -0.25,
+      y1: 0.25,
     });
   });
 
-  it("caps to the API grid when a square would exceed xmax_m / ymax_m", () => {
+  it("caps |y| to ymax_m when a square would exceed the API grid", () => {
     const capped = squareWorld({ x0: 0, x1: 0.8, y0: 0, y1: 0.2 }, 2, 0.4);
-    expect(capped.y0).toBe(0);
+    expect(capped.y0).toBeCloseTo(-0.4, 8);
     expect(capped.y1).toBeCloseTo(0.4, 8);
-    expect(capped.x1).toBeCloseTo(0.8, 8);
+    expect(capped.x1 - capped.x0).toBeCloseTo(capped.y1 - capped.y0, 8);
   });
 
   it("squares a shallow collisionless envelope when ymax_m allows", () => {
@@ -167,8 +169,8 @@ describe("square world window", () => {
       50,
       50,
     );
-    expect(view.y0).toBe(0);
+    expect(view.y0).toBeCloseTo(-view.y1, 8);
     expect(view.x1 - view.x0).toBeCloseTo(view.y1 - view.y0, 8);
-    expect(view.y1).toBeGreaterThan(0.2);
+    expect(view.y1).toBeGreaterThan(0.1);
   });
 });

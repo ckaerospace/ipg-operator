@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  centerlineIsoLevels,
   fieldIsolines,
   fmtIsoValue,
   niceIsoLevels,
@@ -44,6 +45,45 @@ describe("niceIsoLevels", () => {
   it("is empty when the range is degenerate", () => {
     expect(niceIsoLevels(1, 1)).toEqual([]);
     expect(niceIsoLevels(2, 1)).toEqual([]);
+  });
+});
+
+describe("centerlineIsoLevels", () => {
+  it("spreads n/n0 isolines along x instead of bunching 0.2–0.8 at the lip", () => {
+    const nx = 41;
+    const ny = 5;
+    const xmax = 1.2;
+    const xs = Array.from({ length: nx }, (_, i) => (i / (nx - 1)) * xmax);
+    const ys = Array.from({ length: ny }, (_, j) => (j / (ny - 1)) * 0.2);
+    const field = Array.from({ length: nx * ny }, (_, k) => {
+      const x = xs[k % nx];
+      return 1 / (1 + 80 * x) ** 2;
+    });
+    const mask = field.map((v) => (v > 1e-4 ? 0.2 : 0));
+    const colorbar = niceIsoLevels(0, 1);
+    const lip = colorbar.map((lv) => {
+      const i = field.findIndex((v, idx) => idx < nx && v <= lv);
+      return i < 0 ? xmax : xs[i];
+    });
+    expect(Math.max(...lip)).toBeLessThan(0.12);
+
+    const levels = centerlineIsoLevels({ xs, ys, field, nx, ny, mask, x0: 0, x1: xmax });
+    expect(levels.length).toBeGreaterThanOrEqual(4);
+    expect(levels.length).toBeLessThanOrEqual(6);
+    expect(levels).toEqual([...levels].sort((a, b) => a - b));
+    const crossings = levels.map((lv) => {
+      for (let i = 1; i < nx; i++) {
+        if ((field[i - 1] - lv) * (field[i] - lv) <= 0) {
+          return xs[i - 1] + ((lv - field[i - 1]) / (field[i] - field[i - 1] || 1)) * (xs[i] - xs[i - 1]);
+        }
+      }
+      return NaN;
+    });
+    expect(crossings.every(Number.isFinite)).toBe(true);
+    expect(Math.max(...crossings)).toBeGreaterThan(0.35);
+    expect(Math.min(...crossings)).toBeLessThan(0.15);
+    expect(Math.min(...levels)).toBeLessThan(0.15);
+    expect(levels.every((v) => String(v).length < 8)).toBe(true);
   });
 });
 

@@ -1,4 +1,5 @@
 import type { Xy } from "../physics";
+import { sample1d } from "./sample";
 
 export type IsoSeg = { x0: number; y0: number; x1: number; y1: number; level: number };
 export type IsoChain = { level: number; pts: Xy[] };
@@ -46,6 +47,159 @@ export function niceIsoLevels(lo: number, hi: number): number[] {
   const step = niceStep(span, 5);
   const mid = snapLevel(lo + span / 2, step);
   return [mid].filter((v) => v > lo && v < hi);
+}
+
+/** Nearest 1–2–5 × 10^n. */
+export function snap125(v: number): number {
+  if (!Number.isFinite(v) || v === 0) return v;
+  const sign = v < 0 ? -1 : 1;
+  const a = Math.abs(v);
+  const pow = 10 ** Math.floor(Math.log10(a));
+  const n = a / pow;
+  const m = n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10;
+  return sign * snapLevel(m * pow, pow);
+}
+
+function ticks125(lo: number, hi: number): number[] {
+  const a = Math.min(lo, hi);
+  const b = Math.max(lo, hi);
+  if (!(b > a) || b <= 0) return [];
+  const start = 10 ** Math.floor(Math.log10(Math.max(a, 1e-12)));
+  const out: number[] = [];
+  for (let p = start; p <= b * 1.05 && out.length < 24; p *= 10) {
+    for (const m of [1, 2, 5]) {
+      const v = snapLevel(m * p, p);
+      if (v > a * 1.02 && v < b * 0.98) out.push(v);
+    }
+  }
+  return [...new Set(out)].sort((x, y) => x - y);
+}
+
+function crossingX(xs: number[], vs: number[], level: number): number | null {
+  for (let i = 1; i < xs.length; i++) {
+    const a = vs[i - 1];
+    const b = vs[i];
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    if ((a - level) * (b - level) > 0) continue;
+    if (a === b) return xs[i - 1];
+    const t = (level - a) / (b - a);
+    return xs[i - 1] + t * (xs[i] - xs[i - 1]);
+  }
+  return null;
+}
+
+function stationXs(x0: number, x1: number, n: number, logX: boolean): number[] {
+  const count = Math.max(2, n);
+  const out: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const u = 0.08 + (0.84 * i) / (count - 1);
+    if (logX && x0 > 0) out.push(x0 * (x1 / x0) ** u);
+    else out.push(x0 + u * (x1 - x0));
+  }
+  return out;
+}
+
+/**
+ * 4–6 isoline values from the centerline field at roughly equal x
+ * (log-x when the centerline span is >10×), snapped to 1–2–5.
+ */
+export function centerlineIsoLevels(opts: {
+  xs: number[];
+  ys: number[];
+  field: number[];
+  nx: number;
+  ny: number;
+  mask?: number[];
+  x0?: number;
+  x1?: number;
+}): number[] {
+  const { xs, ys, field, nx, ny, mask } = opts;
+  if (nx < 2 || ny < 1) return [];
+  let j0 = 0;
+  let best = Infinity;
+  for (let j = 0; j < ny; j++) {
+    if (ys[j] < -1e-12) continue;
+    const d = Math.abs(ys[j]);
+    if (d < best) {
+      best = d;
+      j0 = j;
+    }
+  }
+  const clX: number[] = [];
+  const clV: number[] = [];
+  const xMin = opts.x0 ?? -Infinity;
+  const xMax = opts.x1 ?? Infinity;
+  for (let i = 0; i < nx; i++) {
+    const x = xs[i];
+    if (x < 0 || x < xMin || x > xMax) continue;
+    const k = j0 * nx + i;
+    if (mask && (!(mask[k] >= N_FAINT) || !Number.isFinite(mask[k]))) continue;
+    const v = field[k];
+    if (!Number.isFinite(v)) continue;
+    clX.push(x);
+    clV.push(v);
+  }
+  if (clX.length < 2) return [];
+  let vLo = Infinity;
+  let vHi = -Infinity;
+  for (const v of clV) {
+    if (v < vLo) vLo = v;
+    if (v > vHi) vHi = v;
+  }
+  const x0 = clX[0];
+  const x1 = clX[clX.length - 1];
+  if (!(x1 > x0) || !(vHi > vLo)) return [];
+  const spanRatio = vLo > 0 ? vHi / vLo : x0 > 0 ? x1 / x0 : 1;
+  const useLogX = x0 > 0 && (x1 / x0 > 10 || spanRatio > 10);
+
+  const picked: number[] = [];
+  const seen = new Set<string>();
+  const add = (v: number) => {
+    const s = snap125(v);
+    if (!Number.isFinite(s) || s <= vLo || s >= vHi) return;
+    const key = s.toPrecision(6);
+    if (seen.has(key)) return;
+    if (crossingX(clX, clV, s) == null && crossingX(clX, clV, v) == null) return;
+    seen.add(key);
+    picked.push(s);
+  };
+
+  for (const n of [5, 6, 4, 8]) {
+    picked.length = 0;
+    seen.clear();
+    for (const x of stationXs(x0, x1, n, useLogX)) add(sample1d(clX, clV, x));
+    if (picked.length >= 4 && picked.length <= 6) return picked.sort((a, b) => a - b);
+  }
+
+  const ticks = ticks125(vLo, vHi);
+  const withX = ticks
+    .map((level) => ({ level, x: crossingX(clX, clV, level) }))
+    .filter((t): t is { level: number; x: number } => t.x != null);
+  if (withX.length >= 4) {
+    const targets = stationXs(x0, x1, Math.min(6, Math.max(4, withX.length >= 6 ? 5 : 4)), useLogX);
+    const used = new Set<number>();
+    const out: number[] = [];
+    for (const tx of targets) {
+      let bestI = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < withX.length; i++) {
+        if (used.has(i)) continue;
+        const d = Math.abs(Math.log(Math.max(withX[i].x, 1e-9)) - Math.log(Math.max(tx, 1e-9)));
+        const dl = useLogX ? d : Math.abs(withX[i].x - tx);
+        if (dl < bestD) {
+          bestD = dl;
+          bestI = i;
+        }
+      }
+      if (bestI >= 0) {
+        used.add(bestI);
+        out.push(withX[bestI].level);
+      }
+    }
+    if (out.length >= 3) return [...new Set(out)].sort((a, b) => a - b).slice(0, 6);
+  }
+  if (picked.length >= 3) return picked.sort((a, b) => a - b);
+  return niceIsoLevels(vLo, vHi);
 }
 
 export function fmtIsoValue(v: number): string {
