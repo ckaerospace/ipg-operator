@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  denseNiceLevels,
   fieldIsoLevels,
   fieldIsolines,
   fmtIsoValue,
@@ -15,6 +16,22 @@ function rampX(nx = 9, ny = 5, xmax = 4, ymax = 1) {
   const mask = Array.from({ length: nx * ny }, () => 0.2);
   return { xs, ys, field, nx, ny, mask };
 }
+
+describe("denseNiceLevels", () => {
+  it("packs 1–2–5 levels inside the span and does not expand it", () => {
+    const levels = denseNiceLevels(100, 4000, 12);
+    expect(levels.length).toBeGreaterThanOrEqual(6);
+    expect(Math.min(...levels)).toBeGreaterThan(100);
+    expect(Math.max(...levels)).toBeLessThan(4000);
+    expect(levels).toEqual([...levels].sort((a, b) => a - b));
+  });
+
+  it("uses 1–2–5 per decade when the span is more than 10×", () => {
+    const levels = denseNiceLevels(1, 2000, 12);
+    expect(levels).toEqual(expect.arrayContaining([2, 5, 10, 20, 50, 100, 200, 500, 1000]));
+    expect(levels.every((v) => v > 1 && v < 2000)).toBe(true);
+  });
+});
 
 describe("niceIsoLevels", () => {
   it("returns 4–6 interior ticks with 1–2–5 spacing", () => {
@@ -142,5 +159,30 @@ describe("isoline labels", () => {
         expect(Math.hypot(dx, dy)).toBeGreaterThan(12);
       }
     }
+  });
+
+  it("skips a reserved overlay box", () => {
+    const g = rampX(11, 7, 4, 2);
+    const levels = [1, 2, 3];
+    const segs = fieldIsolines(g.xs, g.ys, g.field, g.nx, g.ny, levels, g.mask);
+    const chains = stitchIso(segs);
+    const toPx = (x: number, y: number) => ({ x: x * 80, y: 200 - y * 80 });
+    const open = pickIsoLabels(chains, levels, {
+      xMin: 0.3,
+      yMin: 0.15,
+      xMax: 3.7,
+      yMax: 1.8,
+      toPx,
+    });
+    expect(open.length).toBeGreaterThan(0);
+    const blocked = pickIsoLabels(chains, levels, {
+      xMin: 0.3,
+      yMin: 0.15,
+      xMax: 3.7,
+      yMax: 1.8,
+      toPx,
+      avoid: [{ x: -200, y: -200, w: 800, h: 800 }],
+    });
+    expect(blocked).toEqual([]);
   });
 });

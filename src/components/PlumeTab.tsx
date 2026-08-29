@@ -465,9 +465,11 @@ export function PlumeTab({
             </>
           )}
         </div>
-        <div className="probe-hint">
-          {!stationLive ? "Tap the jet to place a station" : plateOn && !faceReady ? "Run to fill face p, q" : "\u00a0"}
-        </div>
+        {stationLive && !(plateOn && !faceReady) ? null : (
+          <div className="probe-hint">
+            {!stationLive ? "Tap the jet to place a station" : "Run to fill face p, q"}
+          </div>
+        )}
         {legend && (
           <div className="legend-inline">
             <p>
@@ -513,17 +515,14 @@ export function PlumeTab({
             </p>
           </div>
         )}
-        <div className="caption">
-          {solve ? "Hot packed gas at the exit" : "Empty nozzle field — Run a point to fill the jet"}
-        </div>
         </div>
         <div className="probe-cue" aria-hidden="true">
           <span className="probe-cue-chevron">▾</span>
         </div>
       </div>
-      <div className="footnote">
-        hinj is local/CEA, not cavity-calorimeter bulk. IPG3 has no throat; ṁ is approximate.
-      </div>
+      {!solve && (
+        <div className="plume-notes">Empty nozzle field — Run a point to fill the jet</div>
+      )}
     </>
   );
 }

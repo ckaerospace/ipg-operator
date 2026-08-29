@@ -59,6 +59,37 @@ export function snap125(v: number): number {
   return sign * snapLevel(m * pow, pow);
 }
 
+/**
+ * Packed 1–2–5 levels across [lo, hi] so a zoomed-in window still hits several
+ * curves. Log decades use 1–2–5 per decade. Does not expand the span.
+ */
+export function denseNiceLevels(lo: number, hi: number, target = 12): number[] {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(hi > lo)) return [];
+  const posLo = lo > 0 ? lo : hi > 0 ? Math.min(hi / 1e4, Math.max(hi * 1e-3, 1e-4)) : lo;
+  const useLog = posLo > 0 && hi / posLo >= 100;
+  const raw: number[] = [];
+  if (useLog) {
+    const a = Math.log10(posLo);
+    const b = Math.log10(hi);
+    for (let d = Math.floor(a); d <= Math.ceil(b); d++) {
+      for (const m of [1, 2, 5]) {
+        const v = m * 10 ** d;
+        if (v > lo && v < hi) raw.push(v);
+      }
+    }
+  } else {
+    const step = niceStep(hi - lo, target);
+    if (!(step > 0)) return [];
+    const start = snapLevel(Math.ceil((lo + step * 0.15) / step) * step, step);
+    for (let k = 0; k < 28; k++) {
+      const v = snapLevel(start + k * step, step);
+      if (v >= hi - step * 0.06) break;
+      if (v > lo) raw.push(v);
+    }
+  }
+  return uniqueSorted(raw).slice(0, 18);
+}
+
 function uniqueSorted(vals: number[]): number[] {
   const seen = new Set<string>();
   const out: number[] = [];
@@ -332,6 +363,7 @@ export function pickIsoLabels(
     yMax: number;
     toPx: (x: number, y: number) => { x: number; y: number };
     fmt?: (v: number) => string;
+    avoid?: { x: number; y: number; w: number; h: number }[];
   },
 ): IsoLabel[] {
   const fmt = opts.fmt ?? fmtIsoValue;
@@ -348,8 +380,8 @@ export function pickIsoLabels(
   }
   const idx = [...new Set(pick.filter((i) => i >= 0 && i < n))];
   const labels: IsoLabel[] = [];
-  const boxes: { x: number; y: number; w: number; h: number }[] = [];
-  const fracs = [0.48, 0.36, 0.62, 0.28, 0.72];
+  const boxes: { x: number; y: number; w: number; h: number }[] = [...(opts.avoid ?? [])];
+  const fracs = [0.48, 0.36, 0.62, 0.28, 0.72, 0.2, 0.8];
 
   for (const i of idx) {
     const level = levels[i];
@@ -366,7 +398,7 @@ export function pickIsoLabels(
         if (p.x < opts.xMin || p.y < opts.yMin) continue;
         if (p.x > opts.xMax || p.y > opts.yMax) continue;
         const px = opts.toPx(p.x, p.y);
-        const box = { x: px.x - 16, y: px.y - 9, w: 36, h: 16 };
+        const box = { x: px.x - 18, y: px.y - 10, w: 40, h: 18 };
         if (boxes.some((b) => boxesOverlap(box, b))) continue;
         boxes.push(box);
         labels.push({ x: p.x, y: p.y, text: fmt(level), level });

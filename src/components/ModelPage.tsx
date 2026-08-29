@@ -107,9 +107,16 @@ export function ModelPage() {
           millimetre map stays isotropic (1&nbsp;mm <i>x</i> = 1&nbsp;mm <i>y</i>); a wide wrap letterboxes and never
           stretches the jet. Pinch (two fingers) zooms about the pinch and pans; one finger stays the station pick.
           Double-tap or Reset restores the fitted window without moving the station. Ticks and isoline labels
-          re-layout on the current view. The Map <i>p</i>
+          re-layout on the current view and skip the Mach disk / “shock overlay” boxes. The station grid has a real
+          row gap. The empty-state line (“Empty nozzle field — Run a point to fill the jet”) shows only when there is
+          no solve. After a solve there is no slogan and no hinj footnote on the Plume tab — those facts stay in this
+          Manual (§1, §7). The readout is clipped inside the Plume pane and does not cover Setup / Map
+          tabs or the layer chips. The Map <i>p</i>
           <sub>inj</sub>–<i>h</i>
-          <sub>inj</sub> figure pinches the same way; the composition plot does not.
+          <sub>inj</sub> figure pinches the same way (zoom-out stays the computed axes — this PWA does not invent a
+          larger domain). Extra ṁ and power isolines are 1–2–5 traces of the computed <i>k</i>(<i>h</i>)×<i>p</i>
+          <sub>inj</sub> field so a pinched-in window still has several curves; not a new CEA solve. Labels reflow.
+          The composition plot does not zoom.
         </p>
 
         <h2>4. Station and probe</h2>
@@ -208,9 +215,10 @@ export function ModelPage() {
           When <span className="mono">shock_applied</span> is true and <span className="mono">x_mach_disk_m</span> is
           finite it strokes a Mach disk chord at that station and, if <span className="mono">barrel_xy</span> has at
           least two points, that polyline mirrored in <i>y</i>.
-          The canvas label is “{MACH_DISK_LABEL}”, with a small “{SHOCK_OVERLAY_CAPTION}” caption beside it so the gold
-          chord cannot be read as the color map. Barrel is a pale dashed outline; the Mach disk is a brighter, thicker
-          gold stroke with a dark halo — not a filled shock hue, and the bilinear field is never tinted by shocks.
+          The canvas label is “{MACH_DISK_LABEL}” on or beside the gold chord, with a small “{SHOCK_OVERLAY_CAPTION}”
+          caption on the next line — not stacked on an isoline number. Isoline labels skip those boxes. Barrel is a
+          pale dashed outline; the Mach disk is a brighter, thicker gold stroke with a dark halo — not a filled shock
+          hue, and the bilinear field is never tinted by shocks.
           Station (green pick), probe plate, and Mach disk are three different glyphs. Thesis never draws this overlay.
           Object None still shows the Mach disk in
           Advanced when shocks apply — the probe is not required. A thin bow is the probe-plate bow (Advanced Object

@@ -1,8 +1,9 @@
 import type { AxisFamily } from "../facility";
 import { usesGrams } from "../facility";
 import { fmtMdotLabel, fmtPower, moleLabel, speciesColor } from "../format";
-import type { CharacteristicsResponse } from "../types";
+import type { CharacteristicsResponse, Isoline } from "../types";
 import { mdotStroke } from "./color";
+import { denseNiceLevels } from "./isolines";
 import { sample1d } from "./sample";
 import { axisTicks, fmtTickNum, tickStep } from "./ticks";
 import {
@@ -63,6 +64,96 @@ function clipLine(pinj: number[], hinj: number[]): { p: number; h: number }[] {
     out.push({ p: pinj[i], h: hinj[i] });
   }
   return out.filter((pt) => Number.isFinite(pt.p) && Number.isFinite(pt.h));
+}
+
+/** k [kg/s/Pa] from the computed hinj column. No extra CEA. */
+export function kKgSPaAt(ch: CharacteristicsResponse, hinj: number): number {
+  if (ch.k_kg_s_Pa && ch.k_kg_s_Pa.length && ch.hinj_MJ_kg.length) {
+    return sample1d(ch.hinj_MJ_kg, ch.k_kg_s_Pa, hinj);
+  }
+  if (!ch.chamber.mdot_mg_s.length || !(ch.pinj_ref_Pa > 0)) return NaN;
+  const mRef = sample1d(ch.hinj_MJ_kg, ch.chamber.mdot_mg_s, hinj);
+  return mRef / ch.pinj_ref_Pa / 1e6;
+}
+
+/** ṁ [mg/s] = k(h) × pinj. Same identity as the Map readout. */
+export function mdotMgAt(ch: CharacteristicsResponse, pinj: number, hinj: number): number {
+  const k = kKgSPaAt(ch, hinj);
+  return Number.isFinite(k) ? k * pinj * 1e6 : NaN;
+}
+
+function mapAxesBox(ch: CharacteristicsResponse): { p0: number; p1: number; h0: number; h1: number } {
+  const fitted = axesView(ch);
+  return { p0: fitted.p0, p1: fitted.p1, h0: fitted.h0, h1: fitted.h1 };
+}
+
+function tracePinjOfH(
+  box: { p0: number; p1: number; h0: number; h1: number },
+  pinjOfH: (h: number) => number,
+): Isoline | null {
+  const pinj: number[] = [];
+  const hinj: number[] = [];
+  const n = 72;
+  for (let i = 0; i < n; i++) {
+    const h = box.h0 + ((box.h1 - box.h0) * i) / (n - 1);
+    const p = pinjOfH(h);
+    if (!Number.isFinite(p) || p < box.p0 || p > box.p1) continue;
+    if (h < box.h0 || h > box.h1) continue;
+    pinj.push(p);
+    hinj.push(h);
+  }
+  if (pinj.length < 3) return null;
+  return { pinj_Pa: pinj, hinj_MJ_kg: hinj };
+}
+
+/**
+ * Extra ṁ / power isolines on the computed pinj–hinj window only.
+ * Packed 1–2–5 so a pinched-in view still has several curves. Not a new CEA solve.
+ */
+export function packMapIsolines(ch: CharacteristicsResponse): {
+  mdot: Isoline[];
+  power: Isoline[];
+} {
+  const box = mapAxesBox(ch);
+  const samples: { m: number; pwr: number }[] = [];
+  const nh = 24;
+  const np = 16;
+  for (let j = 0; j < nh; j++) {
+    const h = box.h0 + ((box.h1 - box.h0) * j) / Math.max(1, nh - 1);
+    for (let i = 0; i < np; i++) {
+      const p = box.p0 + ((box.p1 - box.p0) * i) / Math.max(1, np - 1);
+      const m = mdotMgAt(ch, p, h);
+      if (!Number.isFinite(m) || m <= 0) continue;
+      samples.push({ m, pwr: m * h });
+    }
+  }
+  const ms = samples.map((s) => s.m);
+  const ps = samples.map((s) => s.pwr).filter((v) => v > 0);
+  if (!ms.length) return { mdot: ch.mdot_isolines, power: ch.power_isolines };
+  const mLevels = denseNiceLevels(Math.min(...ms), Math.max(...ms), 12);
+  const pLevels = ps.length ? denseNiceLevels(Math.min(...ps), Math.max(...ps), 12) : [];
+
+  const mdot: Isoline[] = [];
+  for (const M of mLevels) {
+    const iso = tracePinjOfH(box, (h) => {
+      const k = kKgSPaAt(ch, h);
+      return Number.isFinite(k) && k > 0 ? M / (k * 1e6) : NaN;
+    });
+    if (iso) mdot.push({ ...iso, mdot_mg_s: M });
+  }
+  const power: Isoline[] = [];
+  for (const P of pLevels) {
+    const iso = tracePinjOfH(box, (h) => {
+      if (!(h > 0)) return NaN;
+      const k = kKgSPaAt(ch, h);
+      return Number.isFinite(k) && k > 0 ? P / (k * 1e6 * h) : NaN;
+    });
+    if (iso) power.push({ ...iso, power_W: P });
+  }
+  return {
+    mdot: mdot.length ? mdot : ch.mdot_isolines,
+    power: power.length ? power : ch.power_isolines,
+  };
 }
 
 export function mapToRect(v: MapView): RectView {
@@ -162,9 +253,10 @@ export function drawCharacteristics(opts: {
     kinkLabs.push({ x: lay.l + 6, y: y - 2, text: k.label });
   }
 
-  const nM = Math.max(1, ch.mdot_isolines.length - 1);
+  const packed = packMapIsolines(ch);
+  const nM = Math.max(1, packed.mdot.length - 1);
   const mdotLabs: { x: number; y: number; text: string; fill: string }[] = [];
-  ch.mdot_isolines.forEach((iso, i) => {
+  packed.mdot.forEach((iso, i) => {
     const pts = clipLine(iso.pinj_Pa, iso.hinj_MJ_kg);
     if (pts.length < 2) return;
     ctx.strokeStyle = mdotStroke(i / nM);
@@ -202,7 +294,7 @@ export function drawCharacteristics(opts: {
   });
 
   const powerLabels: { x: number; y: number; text: string }[] = [];
-  ch.power_isolines.forEach((iso) => {
+  packed.power.forEach((iso) => {
     const pts = clipLine(iso.pinj_Pa, iso.hinj_MJ_kg);
     if (pts.length < 2) return;
     ctx.strokeStyle = "rgba(232,238,245,0.78)";

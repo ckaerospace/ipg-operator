@@ -383,47 +383,75 @@ function strokeMachChord(ctx: CanvasRenderingContext2D, X: number, Y0: number, Y
   ctx.stroke();
 }
 
-function drawShockLabels(ctx: CanvasRenderingContext2D, map: WorldMap, X: number, Y0: number, Y1: number) {
+export type ShockOverlayPlan = {
+  X: number;
+  Y0: number;
+  Y1: number;
+  barrel: Xy[];
+  align: CanvasTextAlign;
+  title: { x: number; y: number };
+  caption: { x: number; y: number };
+  boxes: { x: number; y: number; w: number; h: number }[];
+};
+
+/** Pixel boxes and chord so isoline numbers stay off the Mach-disk overlay. */
+export function shockOverlayPlan(map: WorldMap, solve: SolveResponse): ShockOverlayPlan | null {
+  const pl = solve.plume;
+  if (pl.shock_applied !== true) return null;
+  const xm = pl.x_mach_disk_m;
+  if (typeof xm !== "number" || !Number.isFinite(xm)) return null;
+  const barrel = parseBarrel(pl.barrel_xy);
+  const r = barrelRadiusAt(barrel, xm, Math.max(pl.H, 1e-4));
+  const X = map.toX(xm);
+  const Y0 = map.toY(-r);
+  const Y1 = map.toY(r);
   const top = Math.min(Y0, Y1);
   const inX = X >= map.plot.l - 2 && X <= map.plot.l + map.plot.w + 2;
-  if (!inX || map.plot.w < 140) return;
-  const roomLeft = X - map.plot.l >= 62;
-  const roomRight = map.plot.l + map.plot.w - X >= 62;
-  const roomAbove = top > map.plot.t + 24;
-  if (!roomLeft && !roomRight) return;
-  const tx = roomLeft ? X - 7 : X + 7;
-  const titleY = roomAbove ? top - 12 : (Y0 + Y1) / 2 - 7;
-  const capY = roomAbove ? top - 1 : (Y0 + Y1) / 2 + 6;
-  ctx.textAlign = roomLeft ? "right" : "left";
+  if (!inX || map.plot.w < 140) {
+    return { X, Y0, Y1, barrel, align: "left", title: { x: X, y: top }, caption: { x: X, y: top }, boxes: [] };
+  }
+  const roomLeft = X - map.plot.l >= 68;
+  const roomRight = map.plot.l + map.plot.w - X >= 68;
+  if (!roomLeft && !roomRight) {
+    return { X, Y0, Y1, barrel, align: "left", title: { x: X, y: top }, caption: { x: X, y: top }, boxes: [] };
+  }
+  const align: CanvasTextAlign = roomLeft ? "right" : "left";
+  const tx = roomLeft ? X - 8 : X + 8;
+  const roomAbove = top > map.plot.t + 28;
+  const titleY = roomAbove ? top - 14 : (Y0 + Y1) / 2 - 8;
+  const capY = titleY + 13;
+  const boxX = roomLeft ? tx - 72 : tx - 2;
+  const boxes = [
+    { x: boxX, y: titleY - 13, w: 74, h: 15 },
+    { x: boxX, y: capY - 12, w: 74, h: 14 },
+    { x: X - 7, y: Math.min(Y0, Y1) - 4, w: 14, h: Math.abs(Y1 - Y0) + 8 },
+  ];
+  return { X, Y0, Y1, barrel, align, title: { x: tx, y: titleY }, caption: { x: tx, y: capY }, boxes };
+}
+
+function paintShockLabels(ctx: CanvasRenderingContext2D, plan: ShockOverlayPlan) {
+  if (!plan.boxes.length) return;
+  ctx.textAlign = plan.align;
   ctx.textBaseline = "bottom";
   ctx.lineWidth = 3.1;
   ctx.strokeStyle = "rgba(10, 12, 16, 0.72)";
   ctx.fillStyle = "rgba(255, 224, 120, 0.98)";
   ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
-  ctx.strokeText(MACH_DISK_LABEL, tx, titleY);
-  ctx.fillText(MACH_DISK_LABEL, tx, titleY);
+  ctx.strokeText(MACH_DISK_LABEL, plan.title.x, plan.title.y);
+  ctx.fillText(MACH_DISK_LABEL, plan.title.x, plan.title.y);
   ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
   ctx.fillStyle = "rgba(255, 214, 140, 0.9)";
-  ctx.strokeText(SHOCK_OVERLAY_CAPTION, tx, capY);
-  ctx.fillText(SHOCK_OVERLAY_CAPTION, tx, capY);
+  ctx.strokeText(SHOCK_OVERLAY_CAPTION, plan.caption.x, plan.caption.y);
+  ctx.fillText(SHOCK_OVERLAY_CAPTION, plan.caption.x, plan.caption.y);
 }
 
-function drawShocks(ctx: CanvasRenderingContext2D, map: WorldMap, solve: SolveResponse) {
-  const pl = solve.plume;
-  if (pl.shock_applied !== true) return;
-  const xm = pl.x_mach_disk_m;
-  if (typeof xm !== "number" || !Number.isFinite(xm)) return;
-  const barrel = parseBarrel(pl.barrel_xy);
-  const r = barrelRadiusAt(barrel, xm, Math.max(pl.H, 1e-4));
+function drawShocks(ctx: CanvasRenderingContext2D, map: WorldMap, plan: ShockOverlayPlan) {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  if (barrel.length >= 2) strokeBarrel(ctx, map, barrel);
-  const X = map.toX(xm);
-  const Y0 = map.toY(-r);
-  const Y1 = map.toY(r);
-  strokeMachChord(ctx, X, Y0, Y1);
-  drawShockLabels(ctx, map, X, Y0, Y1);
+  if (plan.barrel.length >= 2) strokeBarrel(ctx, map, plan.barrel);
+  strokeMachChord(ctx, plan.X, plan.Y0, plan.Y1);
+  paintShockLabels(ctx, plan);
   ctx.restore();
 }
 
@@ -570,6 +598,7 @@ function drawIsolines(
   hi: number,
   view: View,
   de: number,
+  avoid: { x: number; y: number; w: number; h: number }[] = [],
 ) {
   const arr = fieldArray(plume, field);
   const used = fieldIsoLevels(lo, hi);
@@ -616,6 +645,7 @@ function drawIsolines(
     yMax: view.y1 - padY,
     toPx: (x, y) => ({ x: map.toX(x), y: map.toY(y) }),
     fmt: fmtIsoValue,
+    avoid,
   });
   ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
   ctx.textAlign = "center";
@@ -668,8 +698,9 @@ export function drawPlumeFrame(opts: {
     const pl = solve.plume;
     [lo, hi] = fieldRange(pl, fieldArray(pl, field));
     drawFieldMap(ctx, map, pl, field, lo, hi);
-    drawIsolines(ctx, map, pl, field, lo, hi, view, de);
-    if (showShocks) drawShocks(ctx, map, solve);
+    const shockPlan = showShocks ? shockOverlayPlan(map, solve) : null;
+    drawIsolines(ctx, map, pl, field, lo, hi, view, de, shockPlan?.boxes ?? []);
+    if (shockPlan) drawShocks(ctx, map, shockPlan);
   }
 
   drawNozzle(ctx, map, dc, dt, de, view);

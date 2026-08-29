@@ -7,6 +7,7 @@ import {
   SHOCK_OVERLAY,
   SHOCK_OVERLAY_CAPTION,
   shockFitExtents,
+  shockOverlayPlan,
   squareWorld,
   worldMap,
 } from "./plume";
@@ -145,6 +146,16 @@ describe("shock overlay framing", () => {
     expect(SHOCK_OVERLAY.barrelStroke.startsWith("rgba(")).toBe(true);
     expect(SHOCK_OVERLAY.barrelStroke).not.toContain("255, 244, 214");
     expect(SHOCK_OVERLAY.barrelDash[0]).toBeGreaterThan(0);
+  });
+
+  it("reserves pixel boxes beside the Mach-disk chord", () => {
+    const pl = gridPlume();
+    const view = fitView(pl, 84, 50, 50);
+    const map = worldMap(390, 340, view);
+    const plan = shockOverlayPlan(map, { cea: { pinj_Pa: 100, hinj_MJ_kg: 20, mdot_mg_s: 13, exit: { T0: 2000, U0: 3000, MW: 0.016, gamma: 1.4, R: 520, mole_fractions: {} } }, plume: pl });
+    expect(plan).not.toBeNull();
+    expect(plan!.boxes.length).toBeGreaterThanOrEqual(2);
+    expect(plan!.X).toBeCloseTo(map.toX(0.433), 5);
   });
 });
 
