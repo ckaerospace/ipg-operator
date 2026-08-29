@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this form for a defect in the operator console (Setup, Plume, Map, or Manual).
+        Use this form for a defect in the operator console (Setup, Plume, Map, or Model).
         Do not include personal names.
 
   - type: dropdown
@@ -16,7 +16,7 @@ body:
       options:
         - Thesis
         - Advanced
-        - Manual
+        - Model
     validations:
       required: true
 
@@ -82,7 +82,7 @@ body:
         - auto
         - collisionless
         - sudden_freeze
-        - n/a (Manual)
+        - n/a (Model)
     validations:
       required: true
 
@@ -90,7 +90,7 @@ body:
     id: tapped
     attributes:
       label: What you tapped
-      description: Controls, chips, Run, probe, Map, Manual, etc.
+      description: Controls, chips, Run, probe, Map, Model, etc.
       placeholder: e.g. Setup → Advanced → Run → Plume → U
     validations:
       required: true
