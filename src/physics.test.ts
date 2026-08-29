@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { faceMatchesSolve, parsePlumeProbe } from "./physics";
+import {
+  clampProbeYm,
+  faceMatchesSolve,
+  fmtTankPa,
+  parsePlumeProbe,
+  P_TANK_MAX,
+  P_TANK_MIN,
+  sliderToTankPa,
+  tankPaToSlider,
+  TANK_SLIDER_STEPS,
+} from "./physics";
+
+describe("clampProbeYm", () => {
+  it("keeps signed y inside ±ymax", () => {
+    expect(clampProbeYm(0.04, 0.2)).toBeCloseTo(0.04);
+    expect(clampProbeYm(-0.04, 0.2)).toBeCloseTo(-0.04);
+    expect(clampProbeYm(0.5, 0.2)).toBeCloseTo(0.2);
+    expect(clampProbeYm(-0.5, 0.2)).toBeCloseTo(-0.2);
+  });
+});
 
 describe("parsePlumeProbe", () => {
   it("reads kinetic wall p and q from p_w_Pa / q_w_W_m2", () => {
@@ -61,5 +80,22 @@ describe("faceMatchesSolve", () => {
     expect(faceMatchesSolve(solved, 0.7158, 40)).toBe(false);
     expect(faceMatchesSolve(null, 0.7158, 20)).toBe(false);
     expect(faceMatchesSolve(solved, null, 20)).toBe(false);
+  });
+});
+
+describe("tank slider", () => {
+  it("maps log so 10 Pa and 3000 Pa are both usable", () => {
+    const t10 = tankPaToSlider(10);
+    const t3000 = tankPaToSlider(3000);
+    expect(t10).toBeGreaterThan(200);
+    expect(t10).toBeLessThan(500);
+    expect(t3000).toBeGreaterThan(800);
+    expect(Math.abs(sliderToTankPa(t10) - 10)).toBeLessThan(0.05);
+    expect(Math.abs(sliderToTankPa(t3000) - 3000)).toBeLessThan(15);
+    expect(sliderToTankPa(0)).toBeCloseTo(P_TANK_MIN, 8);
+    expect(sliderToTankPa(TANK_SLIDER_STEPS)).toBeCloseTo(P_TANK_MAX, 4);
+    expect(fmtTankPa(10)).toBe("10 Pa");
+    expect(fmtTankPa(3000)).toBe("3000 Pa");
+    expect(fmtTankPa(0.35)).toBe("0.35 Pa");
   });
 });

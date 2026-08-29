@@ -257,16 +257,17 @@ export function SetupTab(p: Props) {
               className={`chip${p.objectKind === "disk" ? " on" : ""}`}
               onClick={() => p.onObject("disk")}
             >
-              Disk
+              Probe
             </button>
           </div>
           {p.objectKind === "disk" ? (
             <div className="field-hint" style={{ marginTop: 8 }}>
-              Tap the jet or set x and disk R on Plume. Default radius 20 mm.
+              Centerline calorimeter plate. Tap the jet or set x and probe R on Plume. Default radius 20 mm. Not the
+              Mach disk.
             </div>
           ) : (
             <div className="field-hint" style={{ marginTop: 8 }}>
-              Empty jet — no body in the flow.
+              Empty jet — no probe. Mach disk still draws in Advanced when shocks apply.
             </div>
           )}
         </>
@@ -276,15 +277,15 @@ export function SetupTab(p: Props) {
           <div className="locked-note">
             <div className="title">Thesis: collisionless jet</div>
             <p>
-              Khasawneh–Cai 2-D free-molecular map from a frozen CEA exit. Auto and sudden-freeze stay off. A probe disk
-              on the centerline is the collisionless plate.
+              Khasawneh–Cai 2-D planar free-molecular map from a frozen CEA exit. Auto and sudden-freeze stay off. Tap
+              Plume for an (x, y) field station — no probe.
             </p>
           </div>
         </>
       )}
 
       <div className="share-row">
-        <CopyLink href={p.shareHref} mentionDisk={!advanced || p.objectKind === "disk"} />
+        <CopyLink href={p.shareHref} mentionDisk={advanced && p.objectKind === "disk"} />
       </div>
     </div>
   );
@@ -353,7 +354,7 @@ function CopyLink({ href, mentionDisk }: { href: string; mentionDisk: boolean })
         {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy link"}
       </button>
       <span className="field-hint">
-        {mentionDisk ? "Same generator, gas, and disk. They tap Run." : "Same generator, gas, and physics. They tap Run."}
+        {mentionDisk ? "Same generator, gas, and probe. They tap Run." : "Same generator, gas, and physics. They tap Run."}
       </span>
     </>
   );

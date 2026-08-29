@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, postCharacteristics, postSolve } from "./api";
 import { MapTab } from "./components/MapTab";
 import { PlumeTab } from "./components/PlumeTab";
@@ -34,6 +34,7 @@ import {
   jetMatch,
   P_TANK_DEFAULT,
   PROBE_TW_K,
+  TANK_SOLVE_DEBOUNCE_MS,
 } from "./physics";
 import { hydrateShareObject, parseShareSearch, shareUrl } from "./shareUrl";
 import { buildSolveBody } from "./solveBody";
@@ -62,9 +63,19 @@ type Boot = {
   layer: "thesis" | "advanced";
   object: JetObject;
   diskX: number | null;
+  probeY: number;
   diskR: number;
   diskTw: number;
   autoRun: boolean;
+};
+
+type SolveOverride = {
+  mode?: SolveMode;
+  pinj?: number;
+  hinj?: number;
+  mdot?: number;
+  goPlume?: boolean;
+  pTank?: number;
 };
 
 function readBoot(): Boot {
@@ -91,10 +102,11 @@ function readBoot(): Boot {
     pinj: coerced.pinj,
     mdotMg: coerced.mdot_mg_s,
     hinj: share.hinj ?? d.hinj,
-    pTank: share.ptank ?? P_TANK_DEFAULT,
+    pTank: clampTankPa(share.ptank ?? P_TANK_DEFAULT),
     layer,
     object: obj.object,
     diskX: obj.diskX,
+    probeY: obj.probeY,
     diskR: share.probe_r ?? DISK_R_MM_DEFAULT,
     diskTw: PROBE_TW_K,
     autoRun: share.run === true,
@@ -116,16 +128,19 @@ export default function App() {
   const [mdotMg, setMdotMg] = useState(boot.mdotMg);
   const [hinj, setHinj] = useState(boot.hinj);
   const [pTank, setPTank] = useState(boot.pTank);
+  const pTankRef = useRef(pTank);
+  const tankDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runSolveRef = useRef<(override?: SolveOverride) => Promise<void>>(async () => {});
   const [layer, setLayer] = useState<AppLayer>(boot.layer);
   const [diskX, setDiskX] = useState<number | null>(boot.diskX);
+  const [probeY, setProbeY] = useState(boot.probeY);
   const [diskR, setDiskR] = useState(boot.diskR);
   const [diskTw, setDiskTw] = useState(boot.diskTw);
   const [solvedFace, setSolvedFace] = useState<{ x: number; r: number } | null>(null);
   const [objectKind, setObjectKind] = useState<JetObject>(boot.object);
   const advanced = layer === "advanced";
-  const showDisk = !advanced || objectKind === "disk";
-  const diskEditors = advanced && objectKind === "disk";
-  const effectiveDiskR = diskEditors ? diskR : DISK_R_MM_DEFAULT;
+  const showDisk = advanced && objectKind === "disk";
+  const effectiveDiskR = showDisk ? diskR : DISK_R_MM_DEFAULT;
   const [running, setRunning] = useState(false);
   const [waking, setWaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,8 +189,15 @@ export default function App() {
     setGas(id);
   };
 
+  const clearTankDebounce = useCallback(() => {
+    if (tankDebounce.current != null) {
+      clearTimeout(tankDebounce.current);
+      tankDebounce.current = null;
+    }
+  }, []);
+
   const runSolve = useCallback(
-    async (override?: { mode: SolveMode; pinj: number; hinj?: number; mdot?: number; goPlume?: boolean }) => {
+    async (override?: SolveOverride) => {
       const mix = resolveMixture(gas, customMix);
       if (!mix) {
         setError("Enter at least one mole fraction.");
@@ -185,6 +207,7 @@ export default function App() {
       const p = override?.pinj ?? pinj;
       const h = override?.hinj ?? hinj;
       const md = override?.mdot ?? mdotMg;
+      const sentTank = clampTankPa(override?.pTank ?? pTankRef.current);
       const sentX = showDisk ? diskX : null;
       const sentR = effectiveDiskR;
       setRunning(true);
@@ -204,7 +227,7 @@ export default function App() {
             pinj_Pa: p,
             hinj_MJ_kg: h,
             mdot_mg_s: md,
-            p_tank_Pa: pTank,
+            p_tank_Pa: sentTank,
             probe_x_m: sentX,
             probe_r_mm: sentR,
             probe_Tw_K: diskTw,
@@ -218,7 +241,12 @@ export default function App() {
         if (res.cea.mdot_mg_s) setMdotMg(res.cea.mdot_mg_s);
         if (advanced) {
           const tankEcho = res.plume.p_tank_Pa ?? res.p_tank_Pa;
-          if (typeof tankEcho === "number" && Number.isFinite(tankEcho)) setPTank(clampTankPa(tankEcho));
+          const stale = tankDebounce.current != null || pTankRef.current !== sentTank;
+          if (!stale && typeof tankEcho === "number" && Number.isFinite(tankEcho)) {
+            const echoed = clampTankPa(tankEcho);
+            pTankRef.current = echoed;
+            setPTank(echoed);
+          }
         }
         if (override?.goPlume) setTab("plume");
       } catch (e) {
@@ -228,8 +256,34 @@ export default function App() {
         setWaking(false);
       }
     },
-    [advanced, layer, mode, pinj, hinj, mdotMg, pTank, plumeMode, gas, customMix, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, showDisk, diskX, effectiveDiskR, diskTw],
+    [advanced, layer, mode, pinj, hinj, mdotMg, plumeMode, gas, customMix, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, showDisk, diskX, effectiveDiskR, diskTw],
   );
+
+  useEffect(() => {
+    pTankRef.current = pTank;
+  }, [pTank]);
+
+  useEffect(() => {
+    runSolveRef.current = runSolve;
+  }, [runSolve]);
+
+  useEffect(() => {
+    if (!advanced) clearTankDebounce();
+  }, [advanced, clearTankDebounce]);
+
+  useEffect(() => () => clearTankDebounce(), [clearTankDebounce]);
+
+  const onPlumeTank = (p: number) => {
+    const next = clampTankPa(p);
+    pTankRef.current = next;
+    setPTank(next);
+    if (!advanced) return;
+    clearTankDebounce();
+    tankDebounce.current = setTimeout(() => {
+      tankDebounce.current = null;
+      void runSolveRef.current({ pTank: pTankRef.current });
+    }, TANK_SOLVE_DEBOUNCE_MS);
+  };
 
   useEffect(() => {
     if (!boot.autoRun || shareRunStarted) return;
@@ -311,10 +365,11 @@ export default function App() {
         pTank,
         plumeMode,
         object: showDisk ? "disk" : "none",
-        diskX_m: showDisk ? diskX : null,
+        diskX_m: diskX,
+        diskY_m: diskX != null ? probeY : null,
         diskR_mm: effectiveDiskR,
       }),
-    [advanced, facility, gas, customMix, mode, pinj, mdotMg, hinj, pTank, plumeMode, showDisk, diskX, effectiveDiskR],
+    [advanced, facility, gas, customMix, mode, pinj, mdotMg, hinj, pTank, plumeMode, showDisk, diskX, probeY, effectiveDiskR],
   );
 
   return (
@@ -377,7 +432,10 @@ export default function App() {
             onPinj={setPinj}
             onMdot={setMdotMg}
             onHinj={setHinj}
-            onPTank={setPTank}
+            onPTank={(p) => {
+              pTankRef.current = clampTankPa(p);
+              setPTank(clampTankPa(p));
+            }}
             onKnown={applyKnown}
             onLayer={(next) => {
               writeLayer(next);
@@ -399,13 +457,17 @@ export default function App() {
             de={geom.d_e_mm}
             advanced={advanced}
             showDisk={showDisk}
-            diskX={showDisk ? diskX : null}
+            diskX={diskX}
+            probeY={probeY}
             diskR={effectiveDiskR}
             diskTw={diskTw}
             onDiskX={setDiskX}
+            onProbeY={setProbeY}
             onDiskR={(r) => setDiskR(clampDiskRmm(r))}
             onDiskTw={(t) => setDiskTw(clampProbeTw(t))}
             solvedFace={solvedFace}
+            pTank={pTank}
+            onPTank={onPlumeTank}
           />
         </section>
         <section className={`pane${tab === "map" ? " on" : ""}`} aria-hidden={tab !== "map"}>
@@ -421,6 +483,7 @@ export default function App() {
             initialPinj={pinj}
             initialHinj={hinj}
             onRunPoint={(p, h) => {
+              clearTankDebounce();
               setMode("enthalpy");
               setPinj(p);
               setHinj(h);
@@ -432,7 +495,13 @@ export default function App() {
       </div>
 
       <div className="run">
-        <button disabled={running || !mixOk} onClick={() => void runSolve()}>
+        <button
+          disabled={running || !mixOk}
+          onClick={() => {
+            clearTankDebounce();
+            void runSolve();
+          }}
+        >
           {running ? "Solving…" : "Run"}
         </button>
       </div>

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { fieldMaskAlpha, fitView, shockFitExtents, squareWorld, worldMap } from "./plume";
+import {
+  fieldMaskAlpha,
+  fitView,
+  MACH_DISK_LABEL,
+  pinchPlumeView,
+  SHOCK_OVERLAY,
+  SHOCK_OVERLAY_CAPTION,
+  shockFitExtents,
+  squareWorld,
+  worldMap,
+} from "./plume";
 import type { SolveResponse } from "../types";
 
 function gridPlume(over: Partial<SolveResponse["plume"]> = {}): SolveResponse["plume"] {
@@ -108,6 +118,16 @@ describe("shock overlay framing", () => {
     expect(map.toX(0.05) - o.x).toBeCloseTo(o.y - map.toY(0.05), 5);
   });
 
+  it("stays isotropic on the phone figure (full width, fixed height)", () => {
+    const view = { x0: 0, x1: 0.4, y0: -0.2, y1: 0.2 };
+    const map = worldMap(390, 340, view);
+    expect(map.plot.w).toBeCloseTo(map.plot.h, 5);
+    const o = { x: map.toX(0), y: map.toY(0) };
+    expect(map.toX(0.05) - o.x).toBeCloseTo(o.y - map.toY(0.05), 5);
+    expect(map.plot.w + map.plot.l).toBeLessThanOrEqual(390);
+    expect(map.plot.h).toBeLessThan(340);
+  });
+
   it("does not frame shocks without shock_applied and x_mach_disk_m", () => {
     expect(shockFitExtents(gridPlume({ shock_applied: false }))).toBeNull();
     expect(shockFitExtents(gridPlume({ shock_applied: undefined, x_mach_disk_m: 0.433 }))).toBeNull();
@@ -115,6 +135,16 @@ describe("shock overlay framing", () => {
     const clean = fitView(gridPlume({ shock_applied: false, mode: "collisionless" }), 84, 50, 50);
     expect(clean.x1).toBeGreaterThan(1);
     expect(clean.y0).toBeCloseTo(-clean.y1, 8);
+  });
+
+  it("strokes a gold Mach-disk chord distinct from a pale barrel outline", () => {
+    expect(SHOCK_OVERLAY_CAPTION).toBe("shock overlay");
+    expect(MACH_DISK_LABEL).toBe("Mach disk");
+    expect(SHOCK_OVERLAY.diskWidth).toBeGreaterThan(SHOCK_OVERLAY.barrelWidth);
+    expect(SHOCK_OVERLAY.diskStroke).toBe("#ffd000");
+    expect(SHOCK_OVERLAY.barrelStroke.startsWith("rgba(")).toBe(true);
+    expect(SHOCK_OVERLAY.barrelStroke).not.toContain("255, 244, 214");
+    expect(SHOCK_OVERLAY.barrelDash[0]).toBeGreaterThan(0);
   });
 });
 
@@ -172,5 +202,30 @@ describe("square world window", () => {
     expect(view.y0).toBeCloseTo(-view.y1, 8);
     expect(view.x1 - view.x0).toBeCloseTo(view.y1 - view.y0, 8);
     expect(view.y1).toBeGreaterThan(0.1);
+  });
+});
+
+describe("pinchPlumeView", () => {
+  it("zooms about the pinch midpoint and stays isotropic inside the fitted window", () => {
+    const bounds = { x0: -0.1, x1: 0.9, y0: -0.5, y1: 0.5 };
+    const start = { ...bounds };
+    const map0 = worldMap(390, 390, start);
+    const mid = { x: map0.toX(0.2), y: map0.toY(0.05) };
+    const next = pinchPlumeView(start, 390, 390, mid, 80, mid, 160, bounds);
+    expect(next.x1 - next.x0).toBeCloseTo(next.y1 - next.y0, 8);
+    expect(next.x1 - next.x0).toBeLessThan(start.x1 - start.x0 - 1e-6);
+    const map1 = worldMap(390, 390, next);
+    expect(map1.fromX(mid.x)).toBeCloseTo(0.2, 3);
+    expect(map1.fromY(mid.y)).toBeCloseTo(0.05, 3);
+    expect(next.x0).toBeGreaterThanOrEqual(bounds.x0 - 1e-9);
+    expect(next.x1).toBeLessThanOrEqual(bounds.x1 + 1e-9);
+  });
+
+  it("refuses to zoom out past the fitted field", () => {
+    const bounds = { x0: -0.1, x1: 0.9, y0: -0.5, y1: 0.5 };
+    const mid = { x: 195, y: 195 };
+    const out = pinchPlumeView(bounds, 390, 390, mid, 160, mid, 40, bounds);
+    expect(out.x1 - out.x0).toBeCloseTo(1);
+    expect(out.x0).toBeCloseTo(bounds.x0);
   });
 });

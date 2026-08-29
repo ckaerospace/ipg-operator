@@ -3,6 +3,7 @@ import { emptyCustomMix, encodeMixParam, parseMixParam } from "./mixture";
 import {
   clampDiskRmm,
   clampDiskXm,
+  clampProbeYm,
   clampTankPa,
   DISK_R_MM_DEFAULT,
 } from "./physics";
@@ -22,6 +23,7 @@ export type SharePoint = {
   plume?: PlumeMode;
   object?: JetObject;
   probe_x?: number;
+  probe_y?: number;
   probe_r?: number;
   run?: boolean;
 };
@@ -39,6 +41,7 @@ export type ShareFields = {
   plumeMode: PlumeMode;
   object: JetObject;
   diskX_m: number | null;
+  diskY_m?: number | null;
   diskR_mm: number;
 };
 
@@ -90,6 +93,8 @@ export function parseShareSearch(search: string): SharePoint {
   if (ptank != null) out.ptank = clampTankPa(ptank);
   const probe_x = num(q, "probe_x");
   if (probe_x != null) out.probe_x = clampDiskXm(probe_x);
+  const probe_y = num(q, "probe_y");
+  if (probe_y != null) out.probe_y = clampProbeYm(probe_y);
   const probe_r = num(q, "probe_r");
   if (probe_r != null) out.probe_r = clampDiskRmm(probe_r);
   const run = q.get("run");
@@ -117,9 +122,9 @@ export function encodeShareSearch(fields: ShareFields): string {
     q.set("object", fields.object === "disk" ? "disk" : "none");
   }
   const advDisk = fields.layer === "advanced" && fields.object === "disk";
-  const thesisPlate = fields.layer !== "advanced";
-  if ((advDisk || thesisPlate) && fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
+  if (fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
     q.set("probe_x", String(clampDiskXm(fields.diskX_m)));
+    q.set("probe_y", String(clampProbeYm(fields.diskY_m ?? 0)));
     if (advDisk) q.set("probe_r", String(clampDiskRmm(fields.diskR_mm ?? DISK_R_MM_DEFAULT)));
   }
   return q.toString();
@@ -156,16 +161,17 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Thesis always allows the disk. Advanced places one only when object=disk. */
+/** Station x/y come from probe_x / probe_y. The calorimeter plate is Advanced object=disk only. */
 export function hydrateShareObject(
   layer: "thesis" | "advanced",
   share: SharePoint,
-): { object: JetObject; diskX: number | null } {
+): { object: JetObject; diskX: number | null; probeY: number } {
+  const probeY = share.probe_y != null && Number.isFinite(share.probe_y) ? share.probe_y : 0;
   if (layer === "advanced") {
     const object: JetObject = share.object === "disk" ? "disk" : "none";
-    return { object, diskX: object === "disk" ? (share.probe_x ?? null) : null };
+    return { object, diskX: share.probe_x ?? null, probeY };
   }
-  return { object: "none", diskX: share.probe_x ?? null };
+  return { object: "none", diskX: share.probe_x ?? null, probeY };
 }
 
 export function shareHasFields(p: SharePoint): boolean {
@@ -182,6 +188,7 @@ export function shareHasFields(p: SharePoint): boolean {
     p.plume != null ||
     p.object != null ||
     p.probe_x != null ||
+    p.probe_y != null ||
     p.probe_r != null ||
     p.run === true
   );

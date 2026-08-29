@@ -4,6 +4,15 @@ import { fmtMdotLabel, fmtPower, moleLabel, speciesColor } from "../format";
 import type { CharacteristicsResponse } from "../types";
 import { mdotStroke } from "./color";
 import { sample1d } from "./sample";
+import { axisTicks, fmtTickNum, tickStep } from "./ticks";
+import {
+  clampRectView,
+  pinchFocusShift,
+  rectMinSpans,
+  zoomRectAbout,
+  type Pt,
+  type RectView,
+} from "./viewZoom";
 
 export type MapView = {
   p0: number;
@@ -56,6 +65,41 @@ function clipLine(pinj: number[], hinj: number[]): { p: number; h: number }[] {
   return out.filter((pt) => Number.isFinite(pt.p) && Number.isFinite(pt.h));
 }
 
+export function mapToRect(v: MapView): RectView {
+  return { x0: v.p0, x1: v.p1, y0: v.h0, y1: v.h1 };
+}
+
+export function rectToMap(r: RectView): MapView {
+  return { p0: r.x0, p1: r.x1, h0: r.y0, h1: r.y1 };
+}
+
+export function pinchMapView(
+  start: MapView,
+  cssW: number,
+  cssH: number,
+  startMid: Pt,
+  startDist: number,
+  nowMid: Pt,
+  nowDist: number,
+  bounds: MapView,
+): MapView {
+  const lay0 = mapLayout(cssW, cssH, start);
+  const focus = { x: lay0.fromP(startMid.x), y: lay0.fromH(startMid.y) };
+  const scale = nowDist / Math.max(startDist, 1e-3);
+  const zoomed = rectToMap(zoomRectAbout(mapToRect(start), focus, scale));
+  const lay1 = mapLayout(cssW, cssH, zoomed);
+  const nowW = { x: lay1.fromP(nowMid.x), y: lay1.fromH(nowMid.y) };
+  const mins = rectMinSpans(mapToRect(bounds));
+  return rectToMap(clampRectView(pinchFocusShift(mapToRect(zoomed), focus, nowW), mapToRect(bounds), mins.minX, mins.minY));
+}
+
+export function wheelMapView(view: MapView, cssW: number, cssH: number, css: Pt, scale: number, bounds: MapView): MapView {
+  const lay = mapLayout(cssW, cssH, view);
+  const focus = { x: lay.fromP(css.x), y: lay.fromH(css.y) };
+  const mins = rectMinSpans(mapToRect(bounds));
+  return rectToMap(clampRectView(zoomRectAbout(mapToRect(view), focus, scale), mapToRect(bounds), mins.minX, mins.minY));
+}
+
 export function drawCharacteristics(opts: {
   ctx: CanvasRenderingContext2D;
   cssW: number;
@@ -65,6 +109,7 @@ export function drawCharacteristics(opts: {
   family: AxisFamily;
   cursor: { pinj: number; hinj: number };
   marks?: { pinj: number; hinj: number; label: string }[];
+  view?: MapView;
 }): MapLayout {
   const { ctx, cssW, cssH, dpr, ch, family, cursor, marks } = opts;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -72,7 +117,7 @@ export function drawCharacteristics(opts: {
   ctx.fillStyle = "#0b1724";
   ctx.fillRect(0, 0, cssW, cssH);
 
-  const view = axesView(ch);
+  const view = opts.view ?? axesView(ch);
   const lay = mapLayout(cssW, cssH, view);
   ctx.fillStyle = "#102033";
   ctx.fillRect(lay.l, lay.t, lay.w, lay.h);
@@ -82,24 +127,20 @@ export function drawCharacteristics(opts: {
   ctx.rect(lay.l, lay.t, lay.w, lay.h);
   ctx.clip();
 
-  const dp = niceStep(view.p1 - view.p0);
-  const dh = niceStep(view.h1 - view.h0);
+  const pTicks = axisTicks(view.p0, view.p1, Math.max(3, Math.min(8, lay.w / 56)));
+  const hTicks = axisTicks(view.h0, view.h1, Math.max(3, Math.min(8, lay.h / 40)));
   ctx.strokeStyle = "rgba(180,210,230,0.12)";
   ctx.lineWidth = 1;
   ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
   ctx.fillStyle = "#8b9aab";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  for (let p = Math.ceil(view.p0 / dp) * dp; p <= view.p1 + 1e-6; p += dp) {
+  for (const p of pTicks) {
     const x = lay.toX(p);
     ctx.beginPath();
     ctx.moveTo(x, lay.t);
     ctx.lineTo(x, lay.t + lay.h);
     ctx.stroke();
   }
-  ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
-  for (let h = Math.ceil(view.h0 / dh) * dh; h <= view.h1 + 1e-6; h += dh) {
+  for (const h of hTicks) {
     const y = lay.toY(h);
     ctx.beginPath();
     ctx.moveTo(lay.l, y);
@@ -107,6 +148,7 @@ export function drawCharacteristics(opts: {
     ctx.stroke();
   }
 
+  const kinkLabs: { x: number; y: number; text: string }[] = [];
   for (const k of ch.kinks) {
     if (k.hinj_MJ_kg < view.h0 || k.hinj_MJ_kg > view.h1) continue;
     const y = lay.toY(k.hinj_MJ_kg);
@@ -117,14 +159,11 @@ export function drawCharacteristics(opts: {
     ctx.lineTo(lay.l + lay.w, y);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "#f5d76e";
-    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "bottom";
-    ctx.fillText(k.label, lay.l + 6, y - 2);
+    kinkLabs.push({ x: lay.l + 6, y: y - 2, text: k.label });
   }
 
   const nM = Math.max(1, ch.mdot_isolines.length - 1);
+  const mdotLabs: { x: number; y: number; text: string; fill: string }[] = [];
   ch.mdot_isolines.forEach((iso, i) => {
     const pts = clipLine(iso.pinj_Pa, iso.hinj_MJ_kg);
     if (pts.length < 2) return;
@@ -133,8 +172,7 @@ export function drawCharacteristics(opts: {
     ctx.setLineDash([]);
     ctx.beginPath();
     let started = false;
-    let labelAt: { x: number; y: number } | null = null;
-    let visible = 0;
+    const vis: { x: number; y: number }[] = [];
     for (const pt of pts) {
       const x = lay.toX(pt.p);
       const y = lay.toY(pt.h);
@@ -147,16 +185,19 @@ export function drawCharacteristics(opts: {
         ctx.moveTo(x, y);
         started = true;
       } else ctx.lineTo(x, y);
-      visible++;
-      if (visible === Math.max(2, Math.floor(pts.length * 0.55))) labelAt = { x, y };
+      vis.push({ x, y });
     }
     ctx.stroke();
-    if (labelAt && iso.mdot_mg_s != null) {
-      ctx.fillStyle = mdotStroke(i / nM);
-      ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(fmtMdotLabel(iso.mdot_mg_s, family), labelAt.x + 3, labelAt.y - 1);
+    if (vis.length >= 3 && iso.mdot_mg_s != null) {
+      const spot = insetLabelSpot(vis, lay, 12);
+      if (spot) {
+        mdotLabs.push({
+          x: spot.x + 3,
+          y: spot.y - 1,
+          text: fmtMdotLabel(iso.mdot_mg_s, family),
+          fill: mdotStroke(i / nM),
+        });
+      }
     }
   });
 
@@ -230,24 +271,40 @@ export function drawCharacteristics(opts: {
 
   ctx.restore();
 
-  drawPowerLabels(ctx, powerLabels, lay);
+  drawSparseLabels(
+    ctx,
+    kinkLabs.map((k) => ({ ...k, fill: "#f5d76e" })),
+    10,
+    14,
+    52,
+  );
+  drawSparseLabels(ctx, mdotLabs, 11, 16, 56);
+  drawSparseLabels(
+    ctx,
+    powerLabels.map((p) => ({ ...p, fill: "rgba(232,238,245,0.92)" })),
+    11,
+    16,
+    56,
+  );
 
   ctx.strokeStyle = "rgba(232,238,245,0.35)";
   ctx.lineWidth = 1;
   ctx.strokeRect(lay.l, lay.t, lay.w, lay.h);
 
+  const pStep = tickStep(pTicks, (view.p1 - view.p0) / 5);
+  const hStep = tickStep(hTicks, (view.h1 - view.h0) / 5);
   ctx.fillStyle = "#8b9aab";
   ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  for (let p = Math.ceil(view.p0 / dp) * dp; p <= view.p1 + 1e-6; p += dp) {
-    ctx.fillText(String(Math.round(p)), lay.toX(p), lay.t + lay.h + 6);
+  for (const p of pTicks) {
+    ctx.fillText(fmtTickNum(p, pStep), lay.toX(p), lay.t + lay.h + 6);
   }
   ctx.fillText("p_inj  [Pa]", lay.l + lay.w / 2, cssH - 14);
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  for (let h = Math.ceil(view.h0 / dh) * dh; h <= view.h1 + 1e-6; h += dh) {
-    ctx.fillText(String(Math.round(h)), lay.l - 6, lay.toY(h));
+  for (const h of hTicks) {
+    ctx.fillText(fmtTickNum(h, hStep), lay.l - 6, lay.toY(h));
   }
   ctx.save();
   ctx.translate(12, lay.t + lay.h / 2);
@@ -285,43 +342,28 @@ function insetLabelSpot(
   };
 }
 
-function drawPowerLabels(
+function drawSparseLabels(
   ctx: CanvasRenderingContext2D,
-  spots: { x: number; y: number; text: string }[],
-  lay: MapLayout,
+  spots: { x: number; y: number; text: string; fill: string }[],
+  fontPx: number,
+  minDy: number,
+  minDx: number,
 ): void {
   if (!spots.length) return;
-  spots.sort((a, b) => a.y - b.y || a.x - b.x);
-  ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+  ctx.font = `${fontPx}px ui-sans-serif, system-ui, sans-serif`;
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
-  ctx.fillStyle = "rgba(232,238,245,0.92)";
-  const yMax = lay.t + lay.h - 2;
-  for (let i = 0; i < spots.length; i++) {
-    const a = spots[i];
-    for (let j = 0; j < i; j++) {
-      const b = spots[j];
-      if (Math.abs(a.x - b.x) < 48 && Math.abs(a.y - b.y) < 12) {
-        a.y = b.y + 12;
-        if (a.y > yMax) {
-          a.y = b.y;
-          a.x = b.x + 48;
-        }
-      }
-    }
-    a.y = Math.min(a.y, yMax);
-    ctx.fillText(a.text, a.x, a.y);
+  const placed: { x: number; y: number; w: number }[] = [];
+  for (const s of spots) {
+    const w = ctx.measureText(s.text).width;
+    const hit = placed.some(
+      (p) => Math.abs(s.x - p.x) < Math.max(minDx, (w + p.w) * 0.55) && Math.abs(s.y - p.y) < minDy,
+    );
+    if (hit) continue;
+    placed.push({ x: s.x, y: s.y, w });
+    ctx.fillStyle = s.fill;
+    ctx.fillText(s.text, s.x, s.y);
   }
-}
-
-function niceStep(span: number): number {
-  const raw = span / 8;
-  const pow = 10 ** Math.floor(Math.log10(Math.max(raw, 1e-6)));
-  const n = raw / pow;
-  if (n < 1.5) return pow;
-  if (n < 3.5) return 2 * pow;
-  if (n < 7.5) return 5 * pow;
-  return 10 * pow;
 }
 
 export function mapReadout(

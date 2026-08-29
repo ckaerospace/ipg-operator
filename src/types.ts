@@ -6,7 +6,7 @@ export type NamedGasId = (typeof NAMED_GASES)[number];
 export type GasId = NamedGasId | "custom";
 export type SolveMode = "generator" | "enthalpy";
 export type PlumeMode = "auto" | "collisionless" | "sudden_freeze";
-/** Advanced Setup: whether a body sits in the jet. Thesis always allows the disk. */
+/** Advanced Setup: whether a calorimeter probe sits in the jet. Wire value stays "disk". Thesis has no probe chrome. */
 export type JetObject = "none" | "disk";
 export type FieldId = "t_ratio" | "n_ratio" | "h_tot" | "speed" | "mach" | "e_kin";
 

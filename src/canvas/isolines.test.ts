@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  centerlineIsoLevels,
+  fieldIsoLevels,
   fieldIsolines,
   fmtIsoValue,
   niceIsoLevels,
@@ -48,42 +48,31 @@ describe("niceIsoLevels", () => {
   });
 });
 
-describe("centerlineIsoLevels", () => {
-  it("spreads n/n0 isolines along x instead of bunching 0.2–0.8 at the lip", () => {
-    const nx = 41;
-    const ny = 5;
-    const xmax = 1.2;
-    const xs = Array.from({ length: nx }, (_, i) => (i / (nx - 1)) * xmax);
-    const ys = Array.from({ length: ny }, (_, j) => (j / (ny - 1)) * 0.2);
-    const field = Array.from({ length: nx * ny }, (_, k) => {
-      const x = xs[k % nx];
-      return 1 / (1 + 80 * x) ** 2;
-    });
-    const mask = field.map((v) => (v > 1e-4 ? 0.2 : 0));
-    const colorbar = niceIsoLevels(0, 1);
-    const lip = colorbar.map((lv) => {
-      const i = field.findIndex((v, idx) => idx < nx && v <= lv);
-      return i < 0 ? xmax : xs[i];
-    });
-    expect(Math.max(...lip)).toBeLessThan(0.12);
-
-    const levels = centerlineIsoLevels({ xs, ys, field, nx, ny, mask, x0: 0, x1: xmax });
-    expect(levels.length).toBeGreaterThanOrEqual(4);
-    expect(levels.length).toBeLessThanOrEqual(6);
+describe("fieldIsoLevels", () => {
+  it("gives about 8 log decades when n/n0 spans more than 10×", () => {
+    const levels = fieldIsoLevels(0.001, 1);
+    expect(levels.length).toBeGreaterThanOrEqual(6);
+    expect(levels.length).toBeLessThanOrEqual(10);
     expect(levels).toEqual([...levels].sort((a, b) => a - b));
-    const crossings = levels.map((lv) => {
-      for (let i = 1; i < nx; i++) {
-        if ((field[i - 1] - lv) * (field[i] - lv) <= 0) {
-          return xs[i - 1] + ((lv - field[i - 1]) / (field[i] - field[i - 1] || 1)) * (xs[i] - xs[i - 1]);
-        }
-      }
-      return NaN;
-    });
-    expect(crossings.every(Number.isFinite)).toBe(true);
-    expect(Math.max(...crossings)).toBeGreaterThan(0.35);
-    expect(Math.min(...crossings)).toBeLessThan(0.15);
-    expect(Math.min(...levels)).toBeLessThan(0.15);
+    expect(Math.min(...levels)).toBeLessThan(0.02);
+    expect(Math.max(...levels)).toBeGreaterThan(0.2);
+    const logs = levels.map((v) => Math.log10(v));
+    const gaps = logs.slice(1).map((a, i) => a - logs[i]);
+    const mean = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    expect(gaps.every((g) => Math.abs(g - mean) < 0.45)).toBe(true);
+  });
+
+  it("uses even linear 1–2–5 steps when the span is modest", () => {
+    const levels = fieldIsoLevels(0.3, 1);
+    expect(levels.length).toBeGreaterThanOrEqual(5);
+    expect(levels.every((v) => v > 0.3 && v < 1)).toBe(true);
     expect(levels.every((v) => String(v).length < 8)).toBe(true);
+  });
+
+  it("does not emit ugly raw values", () => {
+    for (const v of fieldIsoLevels(1.04, 6.173)) {
+      expect(fmtIsoValue(v)).not.toMatch(/6\.173/);
+    }
   });
 });
 

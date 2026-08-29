@@ -2,15 +2,16 @@ import type { FieldId, ProbeSample, SolveResponse } from "../types";
 import { K_EV } from "../format";
 import { parseBarrel, type Xy } from "../physics";
 import { colorize } from "./color";
-import {
-  centerlineIsoLevels,
-  fieldIsolines,
-  fmtIsoValue,
-  niceIsoLevels,
-  pickIsoLabels,
-  stitchIso,
-} from "./isolines";
+import { fieldIsoLevels, fieldIsolines, fmtIsoValue, niceIsoLevels, pickIsoLabels, stitchIso } from "./isolines";
 import { sampleGrid } from "./sample";
+import { axisTicks, fmtTickMm, tickStep } from "./ticks";
+import {
+  clampIsoView,
+  isoMinSpan,
+  pinchFocusShift,
+  zoomIsoAbout,
+  type Pt,
+} from "./viewZoom";
 
 export type View = { x0: number; x1: number; y0: number; y1: number };
 
@@ -24,6 +25,23 @@ export function fieldMaskAlpha(n: number): number {
   if (n >= N_SOLID) return 1;
   return (n - N_FAINT) / (N_SOLID - N_FAINT);
 }
+
+/** On-canvas caption so barrel + Mach disk cannot be read as the color map. */
+export const SHOCK_OVERLAY_CAPTION = "shock overlay";
+export const MACH_DISK_LABEL = "Mach disk";
+
+/** Overlay strokes only — never used to tint the bilinear field. */
+export const SHOCK_OVERLAY = {
+  barrelStroke: "rgba(214, 228, 240, 0.9)",
+  barrelHalo: "rgba(10, 16, 24, 0.55)",
+  barrelWidth: 1.7,
+  barrelHaloWidth: 3.2,
+  barrelDash: [4.2, 3.1] as const,
+  diskStroke: "#ffd000",
+  diskHalo: "rgba(16, 10, 2, 0.92)",
+  diskWidth: 4.35,
+  diskHaloWidth: 6.8,
+} as const;
 
 const FIELD_LABEL: Record<FieldId, string> = {
   t_ratio: "T / T0",
@@ -177,6 +195,33 @@ export function worldMap(w: number, h: number, view: View): WorldMap {
   };
 }
 
+/** Pinch/pan the isotropic millimetre window. Does not re-solve. */
+export function pinchPlumeView(
+  startView: View,
+  cssW: number,
+  cssH: number,
+  startMid: Pt,
+  startDist: number,
+  nowMid: Pt,
+  nowDist: number,
+  bounds: View,
+): View {
+  const map0 = worldMap(cssW, cssH, startView);
+  const focus = { x: map0.fromX(startMid.x), y: map0.fromY(startMid.y) };
+  const scale = nowDist / Math.max(startDist, 1e-3);
+  const zoomed = zoomIsoAbout(startView, focus, scale);
+  const map1 = worldMap(cssW, cssH, zoomed);
+  const nowW = { x: map1.fromX(nowMid.x), y: map1.fromY(nowMid.y) };
+  return clampIsoView(pinchFocusShift(zoomed, focus, nowW), bounds, isoMinSpan(bounds));
+}
+
+export function wheelPlumeView(view: View, cssW: number, cssH: number, css: Pt, scale: number, bounds: View): View {
+  const map = worldMap(cssW, cssH, view);
+  const focus = { x: map.fromX(css.x), y: map.fromY(css.y) };
+  return clampIsoView(zoomIsoAbout(view, focus, scale), bounds, isoMinSpan(bounds));
+}
+
+
 function drawNozzle(
   ctx: CanvasRenderingContext2D,
   map: WorldMap,
@@ -307,6 +352,62 @@ function drawDisk(
   ctx.restore();
 }
 
+function strokeBarrel(ctx: CanvasRenderingContext2D, map: WorldMap, barrel: Xy[]) {
+  const mirror = barrel.map((p) => ({ x: p.x, y: -p.y }));
+  ctx.setLineDash([...SHOCK_OVERLAY.barrelDash]);
+  ctx.strokeStyle = SHOCK_OVERLAY.barrelHalo;
+  ctx.lineWidth = SHOCK_OVERLAY.barrelHaloWidth;
+  strokeXy(ctx, map, barrel);
+  strokeXy(ctx, map, mirror);
+  ctx.strokeStyle = SHOCK_OVERLAY.barrelStroke;
+  ctx.lineWidth = SHOCK_OVERLAY.barrelWidth;
+  strokeXy(ctx, map, barrel);
+  strokeXy(ctx, map, mirror);
+  ctx.setLineDash([]);
+}
+
+function strokeMachChord(ctx: CanvasRenderingContext2D, X: number, Y0: number, Y1: number) {
+  ctx.setLineDash([]);
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.moveTo(X, Y0);
+  ctx.lineTo(X, Y1);
+  ctx.strokeStyle = SHOCK_OVERLAY.diskHalo;
+  ctx.lineWidth = SHOCK_OVERLAY.diskHaloWidth;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(X, Y0);
+  ctx.lineTo(X, Y1);
+  ctx.strokeStyle = SHOCK_OVERLAY.diskStroke;
+  ctx.lineWidth = SHOCK_OVERLAY.diskWidth;
+  ctx.stroke();
+}
+
+function drawShockLabels(ctx: CanvasRenderingContext2D, map: WorldMap, X: number, Y0: number, Y1: number) {
+  const top = Math.min(Y0, Y1);
+  const inX = X >= map.plot.l - 2 && X <= map.plot.l + map.plot.w + 2;
+  if (!inX || map.plot.w < 140) return;
+  const roomLeft = X - map.plot.l >= 62;
+  const roomRight = map.plot.l + map.plot.w - X >= 62;
+  const roomAbove = top > map.plot.t + 24;
+  if (!roomLeft && !roomRight) return;
+  const tx = roomLeft ? X - 7 : X + 7;
+  const titleY = roomAbove ? top - 12 : (Y0 + Y1) / 2 - 7;
+  const capY = roomAbove ? top - 1 : (Y0 + Y1) / 2 + 6;
+  ctx.textAlign = roomLeft ? "right" : "left";
+  ctx.textBaseline = "bottom";
+  ctx.lineWidth = 3.1;
+  ctx.strokeStyle = "rgba(10, 12, 16, 0.72)";
+  ctx.fillStyle = "rgba(255, 224, 120, 0.98)";
+  ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+  ctx.strokeText(MACH_DISK_LABEL, tx, titleY);
+  ctx.fillText(MACH_DISK_LABEL, tx, titleY);
+  ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
+  ctx.fillStyle = "rgba(255, 214, 140, 0.9)";
+  ctx.strokeText(SHOCK_OVERLAY_CAPTION, tx, capY);
+  ctx.fillText(SHOCK_OVERLAY_CAPTION, tx, capY);
+}
+
 function drawShocks(ctx: CanvasRenderingContext2D, map: WorldMap, solve: SolveResponse) {
   const pl = solve.plume;
   if (pl.shock_applied !== true) return;
@@ -315,46 +416,14 @@ function drawShocks(ctx: CanvasRenderingContext2D, map: WorldMap, solve: SolveRe
   const barrel = parseBarrel(pl.barrel_xy);
   const r = barrelRadiusAt(barrel, xm, Math.max(pl.H, 1e-4));
   ctx.save();
-  ctx.setLineDash([]);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  if (barrel.length >= 2) {
-    ctx.strokeStyle = "rgba(255, 244, 214, 0.96)";
-    ctx.lineWidth = 2.35;
-    strokeXy(ctx, map, barrel);
-    strokeXy(
-      ctx,
-      map,
-      barrel.map((p) => ({ x: p.x, y: -p.y })),
-    );
-  }
+  if (barrel.length >= 2) strokeBarrel(ctx, map, barrel);
   const X = map.toX(xm);
   const Y0 = map.toY(-r);
   const Y1 = map.toY(r);
-  ctx.strokeStyle = "#ffe37a";
-  ctx.lineWidth = 3.15;
-  ctx.shadowColor = "rgba(255, 220, 120, 0.75)";
-  ctx.shadowBlur = 5;
-  ctx.beginPath();
-  ctx.moveTo(X, Y0);
-  ctx.lineTo(X, Y1);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-  const top = Math.min(Y0, Y1);
-  const roomLeft = X - map.plot.l >= 58;
-  const roomRight = map.plot.l + map.plot.w - X >= 58;
-  if (map.plot.w >= 140 && top > map.plot.t + 8 && (roomLeft || roomRight)) {
-    ctx.fillStyle = "rgba(255, 236, 190, 0.95)";
-    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
-    ctx.textBaseline = "bottom";
-    if (roomLeft) {
-      ctx.textAlign = "right";
-      ctx.fillText("Mach disk", X - 6, top - 1);
-    } else {
-      ctx.textAlign = "left";
-      ctx.fillText("Mach disk", X + 6, top - 1);
-    }
-  }
+  strokeMachChord(ctx, X, Y0, Y1);
+  drawShockLabels(ctx, map, X, Y0, Y1);
   ctx.restore();
 }
 
@@ -374,13 +443,14 @@ function drawAxes(
   ctx.stroke();
   ctx.fillStyle = "#8b9aab";
   ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+  const xTicks = axisTicks(view.x0, view.x1, Math.max(3, Math.min(8, map.plot.w / 56)));
+  const yTicks = axisTicks(view.y0, view.y1, Math.max(3, Math.min(8, map.plot.h / 44)));
+  const xStep = tickStep(xTicks, (view.x1 - view.x0) / 5);
+  const yStep = tickStep(yTicks, (view.y1 - view.y0) / 5);
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  const nx = 4;
-  for (let i = 0; i <= nx; i++) {
-    const x = view.x0 + ((view.x1 - view.x0) * i) / nx;
-    const px = map.toX(x);
-    ctx.fillText(`${Math.round(x * 1000)}`, px, map.plot.t + map.plot.h + 6);
+  for (const x of xTicks) {
+    ctx.fillText(fmtTickMm(x, xStep), map.toX(x), map.plot.t + map.plot.h + 6);
   }
   ctx.fillText("x mm", map.plot.l + map.plot.w / 2, cssH - 14);
   ctx.save();
@@ -391,10 +461,8 @@ function drawAxes(
   ctx.restore();
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  const ny = 4;
-  for (let i = 0; i <= ny; i++) {
-    const y = view.y0 + ((view.y1 - view.y0) * i) / ny;
-    ctx.fillText(`${Math.round(y * 1000)}`, map.plot.l - 6, map.toY(y));
+  for (const y of yTicks) {
+    ctx.fillText(fmtTickMm(y, yStep), map.plot.l - 6, map.toY(y));
   }
 }
 
@@ -438,6 +506,7 @@ function fmtBar(v: number): string {
 
 let fieldScratch: HTMLCanvasElement | null = null;
 
+/** Bilinear color of the selected field only. Never tints cells by barrel / Mach disk. */
 function drawFieldMap(
   ctx: CanvasRenderingContext2D,
   map: WorldMap,
@@ -503,20 +572,10 @@ function drawIsolines(
   de: number,
 ) {
   const arr = fieldArray(plume, field);
-  const levels =
-    centerlineIsoLevels({
-      xs: plume.x,
-      ys: plume.y,
-      field: arr,
-      nx: plume.nx,
-      ny: plume.ny,
-      mask: plume.n_ratio,
-      x0: Math.max(0, view.x0),
-      x1: view.x1,
-    }) || [];
-  const used = levels.length ? levels : niceIsoLevels(lo, hi);
-  if (!used.length) return;
-  const segs = fieldIsolines(plume.x, plume.y, arr, plume.nx, plume.ny, used, plume.n_ratio);
+  const used = fieldIsoLevels(lo, hi);
+  const fallback = used.length ? used : niceIsoLevels(lo, hi);
+  if (!fallback.length) return;
+  const segs = fieldIsolines(plume.x, plume.y, arr, plume.nx, plume.ny, fallback, plume.n_ratio);
   const chains = stitchIso(segs);
   const strokeChain = (pts: { x: number; y: number }[]) => {
     if (pts.length < 2) return;
@@ -543,12 +602,18 @@ function drawIsolines(
     strokeChain(chain.pts.map((p) => ({ x: p.x, y: -p.y })));
   }
   const re = de / 2000;
-  const yHalf = Math.max(view.y1, -view.y0);
-  const labels = pickIsoLabels(chains, used, {
-    xMin: Math.max(re * 1.6, (view.x1 - view.x0) * 0.06, 0.004),
-    yMin: Math.max(re * 0.15, yHalf * 0.06),
-    xMax: view.x1 - (view.x1 - view.x0) * 0.08,
-    yMax: yHalf * 0.92,
+  const padX = Math.max((view.x1 - view.x0) * 0.06, 0.002);
+  const padY = Math.max((view.y1 - view.y0) * 0.06, 0.002);
+  const nozzleClear = re * 1.6;
+  const labelChains = [
+    ...chains,
+    ...chains.map((c) => ({ level: c.level, pts: c.pts.map((p) => ({ x: p.x, y: -p.y })) })),
+  ];
+  const labels = pickIsoLabels(labelChains, fallback, {
+    xMin: Math.max(view.x0 + padX, view.x0 < nozzleClear ? nozzleClear : view.x0 + padX),
+    yMin: view.y0 + padY,
+    xMax: view.x1 - padX,
+    yMax: view.y1 - padY,
     toPx: (x, y) => ({ x: map.toX(x), y: map.toY(y) }),
     fmt: fmtIsoValue,
   });
@@ -608,6 +673,7 @@ export function drawPlumeFrame(opts: {
   }
 
   drawNozzle(ctx, map, dc, dt, de, view);
+  // Probe plate is a filled glyph; station (green pick) is drawn after the clip.
   if (disk) drawDisk(ctx, map, disk, bow ?? []);
 
   if (!solve) {

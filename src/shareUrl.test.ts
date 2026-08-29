@@ -30,6 +30,7 @@ describe("share URL", () => {
     expect(q).toContain("plume=collisionless");
     expect(q).not.toContain("ptank=");
     expect(q).toContain("probe_x=0.12");
+    expect(q).toContain("probe_y=0");
     expect(q).not.toContain("probe_r=");
     expect(q).not.toContain("object=");
     expect(q).not.toContain("run=");
@@ -45,6 +46,7 @@ describe("share URL", () => {
     expect(parsed.mdot).toBe(2200);
     expect(parsed.plume).toBe("collisionless");
     expect(parsed.probe_x).toBe(0.12);
+    expect(parsed.probe_y).toBe(0);
     expect(parsed.probe_r).toBeUndefined();
     expect(parsed.run).toBeUndefined();
   });
@@ -56,6 +58,7 @@ describe("share URL", () => {
       plumeMode: "sudden_freeze",
       pTank: 40,
       object: "none",
+      diskX_m: null,
     });
     const parsed = parseShareSearch(`?${q}`);
     expect(parsed.layer).toBe("advanced");
@@ -63,12 +66,21 @@ describe("share URL", () => {
     expect(parsed.ptank).toBe(40);
     expect(parsed.object).toBe("none");
     expect(q).not.toContain("probe_x=");
+    expect(q).not.toContain("probe_y=");
   });
 
   it("omits probe_r on Thesis even when a plate is placed", () => {
     const q = encodeShareSearch({ ...fields, layer: "thesis", diskR_mm: 40 });
     expect(q).toContain("probe_x=0.12");
+    expect(q).toContain("probe_y=0");
     expect(q).not.toContain("probe_r=");
+  });
+
+  it("round-trips probe_y with probe_x", () => {
+    const q = encodeShareSearch({ ...fields, diskY_m: 0.04 });
+    expect(q).toContain("probe_x=0.12");
+    expect(q).toContain("probe_y=0.04");
+    expect(parseShareSearch(`?${q}`).probe_y).toBeCloseTo(0.04);
   });
 
   it("Advanced Object Disk persists on/off and x/r", () => {
@@ -87,7 +99,8 @@ describe("share URL", () => {
       diskX_m: 0.12,
     });
     expect(q).toContain("object=none");
-    expect(q).not.toContain("probe_x=");
+    expect(q).toContain("probe_x=0.12");
+    expect(q).toContain("probe_y=0");
     expect(q).not.toContain("probe_r=");
     expect(parseShareSearch("?layer=advanced&facility=IPG4&probe_x=0.12").object).toBeUndefined();
   });
@@ -95,6 +108,7 @@ describe("share URL", () => {
   it("omits the disk when it is not placed", () => {
     const q = encodeShareSearch({ ...fields, diskX_m: null });
     expect(q).not.toContain("probe_x=");
+    expect(q).not.toContain("probe_y=");
     expect(q).not.toContain("probe_r=");
   });
 
@@ -110,13 +124,15 @@ describe("share URL", () => {
     expect(parseShareSearch("?probe_r=80").probe_r).toBe(50);
   });
 
-  it("does not auto-place a disk unless Thesis or Advanced Object Disk", () => {
-    expect(hydrateShareObject("thesis", { probe_x: 0.12 }).diskX).toBe(0.12);
+  it("restores the station from probe_x / probe_y; plate only when object=disk", () => {
+    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).diskX).toBe(0.12);
+    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).probeY).toBe(0.03);
     expect(hydrateShareObject("thesis", { probe_x: 0.12 }).object).toBe("none");
-    expect(hydrateShareObject("advanced", { probe_x: 0.12 }).diskX).toBeNull();
+    expect(hydrateShareObject("advanced", { probe_x: 0.12 }).diskX).toBe(0.12);
     expect(hydrateShareObject("advanced", { probe_x: 0.12 }).object).toBe("none");
-    expect(hydrateShareObject("advanced", { object: "none", probe_x: 0.12 }).diskX).toBeNull();
+    expect(hydrateShareObject("advanced", { object: "none", probe_x: 0.12 }).diskX).toBe(0.12);
     expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).diskX).toBe(0.08);
+    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).object).toBe("disk");
     expect(hydrateShareObject("advanced", { object: "disk" }).diskX).toBeNull();
   });
 

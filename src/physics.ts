@@ -3,6 +3,8 @@ import type { SolveResponse } from "./types";
 export const P_TANK_MIN = 0.1;
 export const P_TANK_MAX = 5000;
 export const P_TANK_DEFAULT = 10;
+export const TANK_SLIDER_STEPS = 1000;
+export const TANK_SOLVE_DEBOUNCE_MS = 350;
 export const KN_EXIT_TRIGGER = 0.05;
 export const KN_OBJ_TRIGGER = 0.05;
 export const DISK_R_MM_DEFAULT = 20;
@@ -15,6 +17,29 @@ const K_B = 1.380649e-23;
 export function clampTankPa(p: number): number {
   if (!Number.isFinite(p)) return P_TANK_DEFAULT;
   return Math.min(P_TANK_MAX, Math.max(P_TANK_MIN, p));
+}
+
+/** Log slider so 10 Pa and 3000 Pa are both usable on 0.1–5000 Pa. */
+export function tankPaToSlider(p: number): number {
+  const v = clampTankPa(p);
+  const a = Math.log10(P_TANK_MIN);
+  const b = Math.log10(P_TANK_MAX);
+  return Math.round(((Math.log10(v) - a) / (b - a)) * TANK_SLIDER_STEPS);
+}
+
+export function sliderToTankPa(t: number): number {
+  const u = Math.min(TANK_SLIDER_STEPS, Math.max(0, t));
+  const a = Math.log10(P_TANK_MIN);
+  const b = Math.log10(P_TANK_MAX);
+  return clampTankPa(10 ** (a + (u / TANK_SLIDER_STEPS) * (b - a)));
+}
+
+export function fmtTankPa(p: number): string {
+  const v = clampTankPa(p);
+  if (v >= 1000) return `${v >= 10000 ? v.toFixed(0) : v >= 3000 ? v.toFixed(0) : v.toFixed(0)} Pa`;
+  if (v >= 10) return `${v >= 100 ? v.toFixed(0) : Number(v.toFixed(v >= 30 ? 0 : 1))} Pa`;
+  if (v >= 1) return `${v.toFixed(1)} Pa`;
+  return `${v.toFixed(2)} Pa`;
 }
 
 function finitePositive(...cands: unknown[]): number | null {
@@ -74,6 +99,12 @@ export function clampDiskXm(x: number, xmax?: number): number {
   const hi = typeof xmax === "number" && Number.isFinite(xmax) && xmax > 0 ? xmax : 2;
   if (!Number.isFinite(x)) return 0;
   return Math.min(hi, Math.max(0, x));
+}
+
+export function clampProbeYm(y: number, ymax?: number): number {
+  const lim = typeof ymax === "number" && Number.isFinite(ymax) && ymax > 0 ? ymax : 2;
+  if (!Number.isFinite(y)) return 0;
+  return Math.min(lim, Math.max(-lim, y));
 }
 
 export function clampProbeTw(t: number): number {

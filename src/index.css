@@ -373,25 +373,15 @@ select {
 }
 
 .plume-slot {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  width: 100%;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  container-type: size;
 }
 .plume-wrap {
-  flex: 0 0 auto;
-  align-self: center;
-  aspect-ratio: 1 / 1;
-  width: min(100%, 100cqh);
-  height: auto;
-  max-width: 100%;
-  max-height: 100%;
-  min-width: min(220px, 100%, 100cqh);
-  min-height: min(220px, 100%, 100cqh);
   position: relative;
+  width: 100%;
+  height: min(48vh, 340px);
+  flex: none;
 }
 .plume-wrap canvas {
   position: absolute;
@@ -405,6 +395,10 @@ select {
   font-size: 12.5px;
   border-bottom: 1px solid var(--line);
 }
+.plume-wrap,
+.map-plot {
+  touch-action: none;
+}
 .plume-wrap canvas,
 .map-plot canvas,
 .comp-wrap canvas {
@@ -412,6 +406,20 @@ select {
   height: 100%;
   display: block;
   touch-action: none;
+}
+.plot-reset {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(12, 18, 24, 0.86);
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .toolbar {
@@ -430,6 +438,38 @@ select {
   min-height: 36px;
   padding: 0 11px;
   font-size: 13px;
+}
+
+.tank-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 5px;
+  border-top: 1px solid var(--line);
+  background: #0c1218;
+}
+.tank-row label {
+  flex: 0 0 auto;
+  max-width: 6.8rem;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.2;
+}
+.tank-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  accent-color: var(--teal);
+}
+.tank-val {
+  flex: 0 0 4.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text);
 }
 
 .disk-row {
@@ -482,12 +522,12 @@ select {
 
 .caption {
   flex: 0 0 auto;
-  padding: 6px 0 2px;
+  padding: 4px 0 1px;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 11px;
 }
 .probe-panel .caption {
-  padding: 8px 0 2px;
+  padding: 4px 0 1px;
 }
 .footnote {
   flex: 0 0 auto;
@@ -515,32 +555,75 @@ select {
 
 .probe-panel {
   flex: 0 0 auto;
-  padding: 4px 10px 2px;
+  position: relative;
   background: #0c1218;
   border-top: 1px solid var(--line);
+  max-height: min(28vh, 9.5rem);
+}
+.probe-scroll {
+  max-height: min(28vh, 9.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 3px 8px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #3a8f82 #161d26;
+}
+.probe-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 0;
+}
+.probe-scroll::-webkit-scrollbar-track {
+  background: #161d26;
+}
+.probe-scroll::-webkit-scrollbar-thumb {
+  background: #3a8f82;
+  border-radius: 4px;
+}
+.probe-cue {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(12, 18, 24, 0), #0c1218 72%);
+  align-items: flex-end;
+  justify-content: center;
+}
+.probe-panel.overflow .probe-cue {
+  display: flex;
+}
+.probe-panel.overflow .probe-scroll {
+  padding-bottom: 18px;
+}
+.probe-cue-chevron {
+  color: var(--teal);
+  font-size: 11px;
+  line-height: 1;
+  padding-bottom: 2px;
+  text-shadow: 0 0 6px #0c1218;
 }
 .probe-hint {
   color: var(--muted);
-  font-size: 12px;
-  padding: 3px 0 1px;
+  font-size: 11px;
+  min-height: 1.2em;
+  padding: 1px 0 0;
 }
 .probe-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 2px 6px;
-}
-@media (max-width: 360px) {
-  .probe-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  gap: 0 4px;
 }
 .probe-grid .cell .l {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: 0.04em;
 }
 .probe-grid .cell .v {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
@@ -549,9 +632,7 @@ select {
   white-space: nowrap;
 }
 .legend-inline {
-  margin-top: 8px;
-  max-height: 28vh;
-  overflow: auto;
+  margin-top: 6px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
@@ -664,6 +745,7 @@ select {
 .map-plot {
   flex: 1.35 1 0;
   min-height: 200px;
+  position: relative;
 }
 .comp-wrap {
   flex: 0.9 1 0;
