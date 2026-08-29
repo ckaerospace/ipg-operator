@@ -1,4 +1,4 @@
-import { usesGrams, type AxisFamily } from "./facility";
+import { usesGrams, type AxisFamily, type PinjUnit } from "./facility";
 
 export function fmt(n: number, digits = 2): string {
   if (!Number.isFinite(n)) return "—";
@@ -16,6 +16,32 @@ export function fmtFixed(n: number, digits: number): string {
 export function fmtPinj(pa: number): string {
   if (pa >= 1000) return `${fmt(pa / 1000, 2)} kPa`;
   return `${fmt(pa, pa >= 100 ? 0 : 1)} Pa`;
+}
+
+function trimDecimals(s: string): string {
+  if (!s.includes(".")) return s;
+  return s.replace(/0+$/, "").replace(/\.$/, "");
+}
+
+/** Display-only. Internal pinj stays pascals. */
+export function fmtPinjUnit(pa: number, unit: PinjUnit): string {
+  if (!Number.isFinite(pa)) return "—";
+  if (unit === "kPa") {
+    const k = pa / 1000;
+    const digits = Math.abs(k) >= 10 ? 1 : 2;
+    return `${trimDecimals(k.toFixed(digits))} kPa`;
+  }
+  return `${fmt(pa, pa >= 100 ? 0 : 1)} Pa`;
+}
+
+export function fmtPinjTick(pa: number, unit: PinjUnit, stepPa: number): string {
+  if (unit === "kPa") {
+    const k = pa / 1000;
+    const stepK = Math.abs(stepPa) / 1000;
+    const digits = stepK >= 0.95 ? 0 : stepK >= 0.095 ? 1 : stepK >= 0.0095 ? 2 : 3;
+    return trimDecimals(k.toFixed(digits));
+  }
+  return fmt(pa, Math.abs(stepPa) >= 0.95 ? 0 : 1);
 }
 
 export function fmtMdot(mdot_mg_s: number, family: AxisFamily): string {

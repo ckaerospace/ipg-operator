@@ -19,7 +19,7 @@ function rampX(nx = 9, ny = 5, xmax = 4, ymax = 1) {
 
 describe("denseNiceLevels", () => {
   it("packs 1–2–5 levels inside the span and does not expand it", () => {
-    const levels = denseNiceLevels(100, 4000, 12);
+    const levels = denseNiceLevels(100, 4000, 16);
     expect(levels.length).toBeGreaterThanOrEqual(6);
     expect(Math.min(...levels)).toBeGreaterThan(100);
     expect(Math.max(...levels)).toBeLessThan(4000);
@@ -27,7 +27,7 @@ describe("denseNiceLevels", () => {
   });
 
   it("uses 1–2–5 per decade when the span is more than 10×", () => {
-    const levels = denseNiceLevels(1, 2000, 12);
+    const levels = denseNiceLevels(1, 2000, 16);
     expect(levels).toEqual(expect.arrayContaining([2, 5, 10, 20, 50, 100, 200, 500, 1000]));
     expect(levels.every((v) => v > 1 && v < 2000)).toBe(true);
   });
@@ -66,10 +66,10 @@ describe("niceIsoLevels", () => {
 });
 
 describe("fieldIsoLevels", () => {
-  it("gives about 8 log decades when n/n0 spans more than 10×", () => {
+  it("gives about 12 log decades when n/n0 spans more than 10×", () => {
     const levels = fieldIsoLevels(0.001, 1);
-    expect(levels.length).toBeGreaterThanOrEqual(6);
-    expect(levels.length).toBeLessThanOrEqual(10);
+    expect(levels.length).toBeGreaterThanOrEqual(7);
+    expect(levels.length).toBeLessThanOrEqual(14);
     expect(levels).toEqual([...levels].sort((a, b) => a - b));
     expect(Math.min(...levels)).toBeLessThan(0.02);
     expect(Math.max(...levels)).toBeGreaterThan(0.2);

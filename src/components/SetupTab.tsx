@@ -1,12 +1,33 @@
 import { useState } from "react";
-import { FACILITY_META, GASES, KNOWN_POINTS, type AxisFamily } from "../facility";
-import { fmtFixed, fmtMdot, fmtPinj } from "../format";
+import {
+  clampHinj,
+  FACILITY_META,
+  GASES,
+  HINJ_MJ_MAX,
+  HINJ_MJ_MIN,
+  HINJ_MJ_STEP,
+  KNOWN_POINTS,
+  type AxisFamily,
+  type PinjUnit,
+} from "../facility";
+import { fmtFixed, fmtMdot, fmtPinjUnit } from "../format";
 import type { AppLayer } from "../layer";
 import { CUSTOM_SPECIES, mixtureSum, type CustomMix } from "../mixture";
-import { P_TANK_MAX, P_TANK_MIN } from "../physics";
+import {
+  clampDiskRmm,
+  clampProbeTw,
+  DISK_R_MM_MAX,
+  DISK_R_MM_MIN,
+  PINJ_SLIDER_STEPS,
+  pinjPaToSlider,
+  P_TANK_MAX,
+  P_TANK_MIN,
+  sliderToPinjPa,
+} from "../physics";
 import { copyText } from "../shareUrl";
 import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "../types";
 import { LayerBar } from "./LayerBar";
+import { PinjUnitChips } from "./PinjUnitChips";
 
 type Props = {
   facility: FacilityId;
@@ -41,6 +62,12 @@ type Props = {
   onLayer: (layer: "thesis" | "advanced") => void;
   objectKind: JetObject;
   onObject: (kind: JetObject) => void;
+  diskR: number;
+  diskTw: number;
+  onDiskR: (r: number) => void;
+  onDiskTw: (t: number) => void;
+  pinjUnit: PinjUnit;
+  onPinjUnit: (u: PinjUnit) => void;
   shareHref: string;
 };
 
@@ -147,15 +174,22 @@ export function SetupTab(p: Props) {
       <div className="slider">
         <div className="row">
           <div className="name">measured pinj</div>
-          <div className="val">{fmtPinj(p.pinj)}</div>
+          <PinjUnitChips unit={p.pinjUnit} onChange={p.onPinjUnit} />
+          <div className="val">{fmtPinjUnit(p.pinj, p.pinjUnit)}</div>
         </div>
         <input
           type="range"
-          min={p.pinjLim.min}
-          max={p.pinjLim.max}
-          step={p.pinjLim.step}
-          value={Math.min(p.pinjLim.max, Math.max(p.pinjLim.min, p.pinj))}
-          onChange={(e) => p.onPinj(Number(e.target.value))}
+          min={0}
+          max={PINJ_SLIDER_STEPS}
+          step={1}
+          value={pinjPaToSlider(p.pinj, p.pinjLim.min, p.pinjLim.max)}
+          onChange={(e) =>
+            p.onPinj(sliderToPinjPa(Number(e.target.value), p.pinjLim.min, p.pinjLim.max, p.pinjLim.step))
+          }
+          aria-label="Chamber pressure, logarithmic"
+          aria-valuemin={p.pinjLim.min}
+          aria-valuemax={p.pinjLim.max}
+          aria-valuenow={p.pinj}
         />
       </div>
 
@@ -182,11 +216,11 @@ export function SetupTab(p: Props) {
           </div>
           <input
             type="range"
-            min={1}
-            max={40}
-            step={0.1}
-            value={p.hinj}
-            onChange={(e) => p.onHinj(Number(e.target.value))}
+            min={HINJ_MJ_MIN}
+            max={HINJ_MJ_MAX}
+            step={HINJ_MJ_STEP}
+            value={clampHinj(p.hinj)}
+            onChange={(e) => p.onHinj(clampHinj(Number(e.target.value)))}
           />
         </div>
       )}
@@ -246,24 +280,64 @@ export function SetupTab(p: Props) {
             </div>
           )}
           <div className="h-label">Object</div>
-          <div className="chips">
-            <button
-              className={`chip${p.objectKind === "none" ? " on" : ""}`}
-              onClick={() => p.onObject("none")}
-            >
-              None
-            </button>
-            <button
-              className={`chip${p.objectKind === "disk" ? " on" : ""}`}
-              onClick={() => p.onObject("disk")}
-            >
-              Probe
-            </button>
+          <div className="object-probe-row">
+            <div className="chips" role="group" aria-label="Object">
+              <button
+                className={`chip${p.objectKind === "none" ? " on" : ""}`}
+                onClick={() => p.onObject("none")}
+              >
+                None
+              </button>
+              <button
+                className={`chip${p.objectKind === "disk" ? " on" : ""}`}
+                onClick={() => p.onObject("disk")}
+              >
+                Probe
+              </button>
+            </div>
+            {p.objectKind === "disk" && (
+              <div className="disk-row disk-row-setup">
+                <label className="disk-field">
+                  probe R
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={DISK_R_MM_MIN}
+                    max={DISK_R_MM_MAX}
+                    step={1}
+                    value={p.diskR}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isFinite(n)) p.onDiskR(clampDiskRmm(n));
+                    }}
+                    aria-label="Probe radius in millimetres"
+                  />
+                  <span>mm</span>
+                </label>
+                <label className="disk-field">
+                  Tw
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={200}
+                    max={2000}
+                    step={10}
+                    value={p.diskTw}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isFinite(n)) p.onDiskTw(clampProbeTw(n));
+                    }}
+                    aria-label="Probe wall temperature in kelvin"
+                  />
+                  <span>K</span>
+                </label>
+              </div>
+            )}
           </div>
           {p.objectKind === "disk" ? (
             <div className="field-hint" style={{ marginTop: 8 }}>
-              Centerline calorimeter plate. Tap the jet or set x and probe R on Plume. Default radius 20 mm. Not the
-              Mach disk.
+              Centerline calorimeter, not the Mach disk. Tap the jet for station (x, y); the plate uses that same x.
+              After Run the station grid shows p_probe, q_probe, and Kn_obj.
             </div>
           ) : (
             <div className="field-hint" style={{ marginTop: 8 }}>

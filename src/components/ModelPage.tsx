@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { HINJ_MJ_MAX, HINJ_MJ_MIN, mdotMgLimits, pinjLimits } from "../facility";
 import { goLayer } from "../layer";
 import { MACH_DISK_LABEL, SHOCK_OVERLAY_CAPTION } from "../canvas/plume";
 import {
@@ -12,6 +13,13 @@ import {
 import { ADVANCED_REF_IDS } from "../refs";
 import { LayerBar } from "./LayerBar";
 import { BugReportLink, RefsList } from "./RefsList";
+
+const IPG6_PINJ = pinjLimits("IPG6-S");
+const IPG6_MDOT = mdotMgLimits("IPG6-S");
+const IPG4_PINJ = pinjLimits("IPG4");
+const IPG4_MDOT = mdotMgLimits("IPG4");
+const IPG3_PINJ = pinjLimits("IPG3");
+const IPG3_MDOT = mdotMgLimits("IPG3");
 
 export function ModelPage() {
   useEffect(() => {
@@ -56,7 +64,13 @@ export function ModelPage() {
           <sub>inj</sub>. <i>h</i>
           <sub>inj</sub> is local/CEA specific enthalpy, not a cavity-calorimeter bulk measurement. IPG3/IPG4 show ṁ
           in g/s; the request still sends <span className="mono">mdot_mg_s</span>. IPG3 has no throat; recovered ṁ is
-          approximate.
+          approximate. Setup sliders clamp <i>p</i>
+          <sub>inj</sub> and ṁ by family — IPG6-S {IPG6_PINJ.min}–{IPG6_PINJ.max}&nbsp;Pa and {IPG6_MDOT.min}–
+          {IPG6_MDOT.max}&nbsp;mg/s; IPG4 {IPG4_PINJ.min}–{IPG4_PINJ.max}&nbsp;Pa and {IPG4_MDOT.min / 1000}–
+          {IPG4_MDOT.max / 1000}&nbsp;g/s; IPG3 {IPG3_PINJ.min}–{IPG3_PINJ.max}&nbsp;Pa and {IPG3_MDOT.min / 1000}–
+          {IPG3_MDOT.max / 1000}&nbsp;g/s. Assigned <i>h</i>
+          <sub>inj</sub> is {HINJ_MJ_MIN}–{HINJ_MJ_MAX}&nbsp;MJ/kg (linear). The pinj slider is logarithmic so
+          100&nbsp;Pa stays hittable on IPG6-S. These are PWA editor ranges, not facility hardware ratings.
         </p>
         <p>
           In Advanced only: Physics is Auto / Collisionless / Sudden-freeze; tank pressure <i>p</i>
@@ -99,7 +113,7 @@ export function ModelPage() {
         <p>
           Color is a bilinear sample of the selected field (T/T0, n/n0, h_tot, U, M, E) on the{" "}
           <span className="mono">nx</span>×<span className="mono">ny</span> grid. Isolines are marching squares of
-          that same grid: about eight even steps of the selected field, or equal log<sub>10</sub> spacing when{" "}
+          that same grid: about twelve even steps of the selected field, or equal log<sub>10</sub> spacing when{" "}
           <i>hi</i>/<i>lo</i> ≥ 10, then snapped to 1–2–5. The field is never tinted by barrel or Mach disk. Changing
           the field chip, placing a station, or pinching is not a new CEA solve.
         </p>
@@ -114,9 +128,16 @@ export function ModelPage() {
           Model (§1, §7). The readout is clipped inside the Plume pane and does not cover Setup / Map
           tabs or the Thesis / Advanced chips. The Map <i>p</i>
           <sub>inj</sub>–<i>h</i>
-          <sub>inj</sub> figure pinches the same way (zoom-out stays the computed axes — this PWA does not invent a
-          larger domain). Extra ṁ and power isolines are 1–2–5 traces of the computed <i>k</i>(<i>h</i>)×<i>p</i>
-          <sub>inj</sub> field so a pinched-in window still has several curves; not a new CEA solve. Labels reflow.
+          <sub>inj</sub> figure pinches the same way. The hinj axis is the characteristics sweep{" "}
+          <span className="mono">hinj_min</span>–<span className="mono">hinj_max</span> ({HINJ_MJ_MIN}–{HINJ_MJ_MAX}
+          &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). The pinj box is the Setup family clamp (IPG6-S 0–
+          {pinjLimits("IPG6-S").max}&nbsp;Pa, IPG4 0–{pinjLimits("IPG4").max}&nbsp;Pa, IPG3 0–
+          {pinjLimits("IPG3").max}&nbsp;Pa) — not the API catalog clip 250/5000/3000. Extra ṁ and power isolines are
+          denser 1–2–5 traces of the same computed <i>k</i>(<i>h</i>)×<i>p</i>
+          <sub>inj</sub> identity on that box; this PWA does not invent <i>k</i> or a second characteristics call.
+          Zoom-out cannot exceed that fitted box. Pa | kPa is display only (internal <span className="mono">pinj_Pa</span>{" "}
+          stays pascals). If the wider hinj sweep fails, Map falls back to the previous characteristics request and
+          still uses the returned hinj axes. Labels reflow.
           The composition plot does not zoom.
         </p>
 
@@ -132,13 +153,17 @@ export function ModelPage() {
           (<i>x</i>, <i>y</i>) from the isotropic map; two-finger pinch does not move it. The marker sits at that
           signed point. The grid shows <i>x</i>, <i>y</i>, <i>T</i>, n/n0, <i>U</i>, Mach, Kn, E (directed ½ <i>m</i>{" "}
           <i>U</i>² in eV), E_O, e_th (1.5 <i>kT</i>), and h_tot from the bilinear sample at (<i>x</i>, |<i>y</i>|).
-          The tap is not a probe and not a Mach disk. Thesis has no probe chrome and no R / Tw row.
+          The tap is not a probe and not a Mach disk. Thesis has no probe chrome and no R / Tw / x editors.
         </p>
         <p>
-          Advanced Object Probe adds a <b>centerline</b> calorimeter plate — not a shock. The Plume row edits <i>x</i>,
-          probe R (5–50&nbsp;mm, default 20), and Tw (200–2000&nbsp;K, default 300). Face <i>p</i>, <i>q</i>, Kn_obj,
-          and regime fill only after Run at that <i>x</i>, <i>R</i> — not on every drag. Object None has no plate and
-          no p/q row; the (<i>x</i>, <i>y</i>) station still works. Request fields{" "}
+          Advanced Object Probe adds a <b>centerline</b> calorimeter plate — not a shock. Setup next to None|Probe
+          edits probe R (5–50&nbsp;mm, default 20) and Tw (200–2000&nbsp;K, default 300). There is no <i>x</i> editor
+          on Plume or Setup: tap sets station (<i>x</i>, <i>y</i>), and the plate uses that same <i>x</i> on the
+          centerline. <span className="mono">p_probe</span> (plate face pressure) and{" "}
+          <span className="mono">q_probe</span> (plate heat flux) fill only after Run at that <i>x</i>, <i>R</i> —
+          not on every drag. They are not tank <i>p</i>
+          <sub>∞</sub> and not field-sample cells. Object None has no plate and no p_probe / q_probe row; the
+          (<i>x</i>, <i>y</i>) station still works. Request fields{" "}
           <span className="mono">probe_x_m</span>, <span className="mono">probe_r_mm</span>,{" "}
           <span className="mono">probe_Tw_K</span> are posted only for Advanced Probe when a station <i>x</i> is set.
           If the chemistry API rejects those keys (HTTP 422), the solve is retried without them; the plate is still

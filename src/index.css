@@ -16,8 +16,8 @@
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --header-h: 48px;
-  --run-h: 52px;
-  --tab-h: 56px;
+  --run-h: 42px;
+  --tab-h: 44px;
   --font: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -74,13 +74,6 @@ select {
   padding: 0 0.35em;
 }
 
-.strip-note {
-  flex: 0 0 auto;
-  padding: 4px 14px 8px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-}
 .strip {
   flex: 0 0 auto;
   min-height: 34px;
@@ -334,8 +327,9 @@ select {
 .slider .row {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .slider .name {
   font-size: 14px;
@@ -364,19 +358,23 @@ select {
   flex: 0 0 var(--run-h);
   position: relative;
   z-index: 40;
-  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  padding: 3px 10px;
   background: #0c1014;
   border-top: 1px solid var(--line);
 }
 .run button {
   width: 100%;
-  min-height: 44px;
+  min-height: 36px;
+  height: 36px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--teal);
   color: #05221c;
   font-weight: 750;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
+  font-size: 13px;
   text-transform: uppercase;
   cursor: pointer;
 }
@@ -396,13 +394,14 @@ select {
 }
 .tabs button {
   min-height: 44px;
+  height: 44px;
   border: 0;
   background: transparent;
   color: var(--muted);
   font-weight: 650;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
 }
 .tabs button.on {
@@ -510,12 +509,22 @@ select {
   color: var(--text);
 }
 
+.object-probe-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
 .disk-row {
   flex: 0 0 auto;
   display: flex;
   gap: 8px;
   align-items: flex-end;
-  padding: 0 10px 4px;
+}
+.disk-row-setup {
+  padding: 0;
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 .disk-field {
   display: flex;
@@ -598,7 +607,7 @@ select {
 .probe-panel {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: min(22vh, 7.75rem);
+  max-height: min(28vh, 10.75rem);
   position: relative;
   overflow: hidden;
   pointer-events: none;
@@ -797,6 +806,15 @@ select {
   font-size: 13px;
 }
 
+.map-unit-bar {
+  flex: 0 0 auto;
+  padding: 6px 12px 0;
+}
+.pinj-unit .chip {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
 .map-plot {
   flex: 1.35 1 0;
   min-height: 200px;

@@ -5,14 +5,19 @@ import { PlumeTab } from "./components/PlumeTab";
 import { SetupTab } from "./components/SetupTab";
 import {
   axisFamily,
+  clampHinj,
   coerceOperatingPoint,
   defaultPoint,
   FACILITY_META,
   geometryOf,
+  defaultPinjUnit,
+  HINJ_MJ_MAX,
+  HINJ_MJ_MIN,
   KNOWN_POINTS,
   mixtureFor,
   mdotMgLimits,
   pinjLimits,
+  type PinjUnit,
 } from "./facility";
 import {
   emptyCustomMix,
@@ -101,7 +106,7 @@ function readBoot(): Boot {
     plumeMode: share.plume ?? "auto",
     pinj: coerced.pinj,
     mdotMg: coerced.mdot_mg_s,
-    hinj: share.hinj ?? d.hinj,
+    hinj: clampHinj(share.hinj ?? d.hinj),
     pTank: clampTankPa(share.ptank ?? P_TANK_DEFAULT),
     layer,
     object: obj.object,
@@ -127,6 +132,9 @@ export default function App() {
   const [pinj, setPinj] = useState(boot.pinj);
   const [mdotMg, setMdotMg] = useState(boot.mdotMg);
   const [hinj, setHinj] = useState(boot.hinj);
+  const [pinjUnit, setPinjUnit] = useState<PinjUnit>(() =>
+    defaultPinjUnit(axisFamily(boot.facility, boot.custom.dt)),
+  );
   const [pTank, setPTank] = useState(boot.pTank);
   const pTankRef = useRef(pTank);
   const tankDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,6 +162,9 @@ export default function App() {
 
   const geom = geometryOf(facility, custom);
   const family = axisFamily(facility, geom.d_t_mm);
+  useEffect(() => {
+    setPinjUnit(defaultPinjUnit(family));
+  }, [family]);
   const pLim = pinjLimits(family);
   const mLim = mdotMgLimits(family);
 
@@ -163,7 +174,7 @@ export default function App() {
     if (gas !== "custom" && id !== "Custom") setGas(d.gas);
     setPinj(d.pinj);
     setMdotMg(d.mdot_mg_s);
-    setHinj(d.hinj);
+    setHinj(clampHinj(d.hinj));
     if (id !== "Custom") {
       const m = FACILITY_META[id];
       setCustom({ dc: m.dc, dt: m.dt, de: m.de });
@@ -177,7 +188,7 @@ export default function App() {
     setGas(k.gas);
     setPinj(k.pinj);
     setMode(k.mode);
-    if (k.hinj != null) setHinj(k.hinj);
+    if (k.hinj != null) setHinj(clampHinj(k.hinj));
     if (k.mdot_mg_s != null) setMdotMg(k.mdot_mg_s);
   };
 
@@ -297,7 +308,7 @@ export default function App() {
     if (next !== "map") return;
     const mix = resolveMixture(gas, customMix);
     const mixKey = gas === "custom" ? encodeMixParam(customMix) : gas;
-    const key = `${facility}|${mixKey}|${geom.d_c_mm}|${geom.d_t_mm}|${geom.d_e_mm}|${Math.round(pinj)}`;
+    const key = `${facility}|${mixKey}|${geom.d_c_mm}|${geom.d_t_mm}|${geom.d_e_mm}|${Math.round(pinj)}|h${HINJ_MJ_MIN}-${HINJ_MJ_MAX}|n29`;
     if (!mix) {
       setMapStatus("error");
       setMapErr("Enter at least one mole fraction.");
@@ -310,19 +321,22 @@ export default function App() {
     setMapStatus("loading");
     setMapWake(false);
     setMapErr(null);
-    postCharacteristics(
-      {
-        pinj_ref_Pa: pinj,
-        mixture: mix,
-        basis: "mole",
-        d_c_mm: geom.d_c_mm,
-        d_t_mm: geom.d_t_mm,
-        d_e_mm: geom.d_e_mm,
-        nozzle_name: geom.nozzle_name,
-        n_h: 13,
-      },
-      () => setMapWake(true),
-    )
+    const charBase = {
+      pinj_ref_Pa: pinj,
+      mixture: mix,
+      basis: "mole" as const,
+      d_c_mm: geom.d_c_mm,
+      d_t_mm: geom.d_t_mm,
+      d_e_mm: geom.d_e_mm,
+      nozzle_name: geom.nozzle_name,
+    };
+    const wake = () => setMapWake(true);
+    postCharacteristics({ ...charBase, n_h: 29, hinj_min: HINJ_MJ_MIN, hinj_max: HINJ_MJ_MAX }, wake)
+      .catch((e: unknown) => {
+        const status = e instanceof ApiError ? e.status : 0;
+        if (status === 404 || status === 405) throw e;
+        return postCharacteristics({ ...charBase, n_h: 13 }, wake);
+      })
       .then((data) => {
         setCh(data);
         setMapKey(key);
@@ -385,11 +399,6 @@ export default function App() {
           ))}
         </div>
       )}
-      {strip && gas === "custom" && (
-        <div className="strip-note">
-          Custom gas is a mole mix of O2, N2, CO2, He, and Ar sent to CEA — not a new solver.
-        </div>
-      )}
       {(waking || (mapWake && tab === "map")) && <div className="wake">waking chemistry server</div>}
       {error && tab !== "map" && <div className="err">{error}</div>}
 
@@ -443,6 +452,12 @@ export default function App() {
             }}
             objectKind={objectKind}
             onObject={setObjectKind}
+            diskR={diskR}
+            diskTw={diskTw}
+            onDiskR={(r) => setDiskR(clampDiskRmm(r))}
+            onDiskTw={(t) => setDiskTw(clampProbeTw(t))}
+            pinjUnit={pinjUnit}
+            onPinjUnit={setPinjUnit}
             shareHref={shareHref}
           />
         </section>
@@ -460,11 +475,8 @@ export default function App() {
             diskX={diskX}
             probeY={probeY}
             diskR={effectiveDiskR}
-            diskTw={diskTw}
             onDiskX={setDiskX}
             onProbeY={setProbeY}
-            onDiskR={(r) => setDiskR(clampDiskRmm(r))}
-            onDiskTw={(t) => setDiskTw(clampProbeTw(t))}
             solvedFace={solvedFace}
             pTank={pTank}
             onPTank={onPlumeTank}
@@ -482,13 +494,15 @@ export default function App() {
             facility={facility}
             initialPinj={pinj}
             initialHinj={hinj}
+            pinjUnit={pinjUnit}
+            onPinjUnit={setPinjUnit}
             onRunPoint={(p, h) => {
               clearTankDebounce();
               setMode("enthalpy");
               setPinj(p);
-              setHinj(h);
+              setHinj(clampHinj(h));
               setTab("plume");
-              void runSolve({ mode: "enthalpy", pinj: p, hinj: h, goPlume: true });
+              void runSolve({ mode: "enthalpy", pinj: p, hinj: clampHinj(h), goPlume: true });
             }}
           />
         </section>

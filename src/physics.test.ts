@@ -4,8 +4,11 @@ import {
   faceMatchesSolve,
   fmtTankPa,
   parsePlumeProbe,
+  PINJ_SLIDER_STEPS,
+  pinjPaToSlider,
   P_TANK_MAX,
   P_TANK_MIN,
+  sliderToPinjPa,
   sliderToTankPa,
   tankPaToSlider,
   TANK_SLIDER_STEPS,
@@ -97,5 +100,20 @@ describe("tank slider", () => {
     expect(fmtTankPa(10)).toBe("10 Pa");
     expect(fmtTankPa(3000)).toBe("3000 Pa");
     expect(fmtTankPa(0.35)).toBe("0.35 Pa");
+  });
+});
+
+describe("pinj log slider", () => {
+  const min = 5;
+  const max = 2000;
+  const step = 1;
+
+  it("keeps 100 Pa hittable on the IPG6-S 5–2000 Pa track", () => {
+    const t100 = pinjPaToSlider(100, min, max);
+    expect(t100).toBeGreaterThan(PINJ_SLIDER_STEPS * 0.35);
+    expect(t100).toBeLessThan(PINJ_SLIDER_STEPS * 0.65);
+    expect(sliderToPinjPa(t100, min, max, step)).toBe(100);
+    expect(sliderToPinjPa(0, min, max, step)).toBe(min);
+    expect(sliderToPinjPa(PINJ_SLIDER_STEPS, min, max, step)).toBe(max);
   });
 });

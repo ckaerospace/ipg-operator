@@ -13,12 +13,8 @@ import { viewsClose } from "../canvas/viewZoom";
 import { cssPoint, pairStats, PlotTouch, wheelScale } from "../gestures/plotTouch";
 import { fmt, fmtFixed, fmtHeatFlux, fmtPa } from "../format";
 import {
-  clampDiskRmm,
   clampDiskXm,
-  clampProbeTw,
   clampProbeYm,
-  DISK_R_MM_MAX,
-  DISK_R_MM_MIN,
   estimateKnObj,
   faceMatchesSolve,
   fmtTankPa,
@@ -56,11 +52,8 @@ type Props = {
   diskX: number | null;
   probeY: number;
   diskR: number;
-  diskTw: number;
   onDiskX: (x: number | null) => void;
   onProbeY: (y: number) => void;
-  onDiskR: (r: number) => void;
-  onDiskTw: (t: number) => void;
   solvedFace: { x: number; r: number } | null;
   pTank: number;
   onPTank: (p: number) => void;
@@ -79,11 +72,8 @@ export function PlumeTab({
   diskX,
   probeY,
   diskR,
-  diskTw,
   onDiskX,
   onProbeY,
-  onDiskR,
-  onDiskTw,
   solvedFace,
   pTank,
   onPTank,
@@ -213,11 +203,6 @@ export function PlumeTab({
     };
   };
 
-  const placeX = (x: number) => {
-    const xmax = solve?.plume.xmax_m;
-    onDiskX(clampDiskXm(x, xmax));
-  };
-
   const placeStation = (x: number, y: number) => {
     const xmax = solve?.plume.xmax_m;
     const ymax = solve?.plume.ymax_m;
@@ -345,63 +330,6 @@ export function PlumeTab({
           i
         </button>
       </div>
-      {plateOn && (
-        <div className="disk-row">
-          <label className="disk-field">
-            x
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={1}
-              value={diskX == null ? "" : +(diskX * 1000).toFixed(1)}
-              placeholder="mm"
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === "") {
-                  onDiskX(null);
-                  return;
-                }
-                const n = Number(raw);
-                if (Number.isFinite(n)) placeX(n / 1000);
-              }}
-            />
-            <span>mm</span>
-          </label>
-          <label className="disk-field">
-            probe R
-            <input
-              type="number"
-              inputMode="decimal"
-              min={DISK_R_MM_MIN}
-              max={DISK_R_MM_MAX}
-              step={1}
-              value={diskR}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isFinite(n)) onDiskR(clampDiskRmm(n));
-              }}
-            />
-            <span>mm</span>
-          </label>
-          <label className="disk-field">
-            Tw
-            <input
-              type="number"
-              inputMode="decimal"
-              min={200}
-              max={2000}
-              step={10}
-              value={diskTw}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isFinite(n)) onDiskTw(clampProbeTw(n));
-              }}
-            />
-            <span>K</span>
-          </label>
-        </div>
-      )}
       {running && (
         <div className="plume-status">{waking ? "waking chemistry server" : "Solving…"}</div>
       )}
@@ -458,8 +386,8 @@ export function PlumeTab({
           <Cell l="h_tot" v={sample ? `${fmt(sample.h_tot, 2)} MJ/kg` : "—"} />
           {plateOn && (
             <>
-              <Cell l="p" v={pVal == null ? "—" : fmtPa(pVal)} />
-              <Cell l="q" v={qVal == null ? "—" : fmtHeatFlux(qVal)} />
+              <Cell l="p_probe" v={pVal == null ? "—" : fmtPa(pVal)} />
+              <Cell l="q_probe" v={qVal == null ? "—" : fmtHeatFlux(qVal)} />
               <Cell l="Kn_obj" v={knObj == null ? "—" : knObj.toPrecision(2)} />
               <Cell l="regime" v={regime ?? "—"} />
             </>
@@ -467,7 +395,7 @@ export function PlumeTab({
         </div>
         {stationLive && !(plateOn && !faceReady) ? null : (
           <div className="probe-hint">
-            {!stationLive ? "Tap the jet to place a station" : "Run to fill face p, q"}
+            {!stationLive ? "Tap the jet to place a station" : "Run to fill p_probe, q_probe"}
           </div>
         )}
         {legend && (
@@ -477,7 +405,7 @@ export function PlumeTab({
               exit bulk velocity. Thesis is the Khasawneh–Cai 2-D planar collisionless jet, mirrored about y = 0 for
               display — not axisymmetric. Color is a bilinear
               sample of the selected field on the nx×ny grid; faint n/n0 is masked so the far field stays dark. Thin
-              isolines are marching squares of that same grid, ~8 levels even in the selected field (log decades if it
+              isolines are marching squares of that same grid, ~12 levels even in the selected field (log decades if it
               spans more than 10×). Pinch zooms the millimetre map about the pinch; two-finger drag pans. Double-tap
               or Reset returns to the fitted jet. Ticks and isoline labels re-layout on the current window — this does
               not re-run CEA. E is
@@ -485,10 +413,12 @@ export function PlumeTab({
             </p>
             <p>
               Station: tap anywhere on the plume — Thesis or Advanced, Object None or Probe. That pick is a field
-              sample at (x, y), not a probe and not a Mach disk. Incident T, n, U, M, Kn, E update at (x, |y|). Face p
-              and q appear only for Advanced Object Probe after Run at the tap’s x and the centerline plate R. Thesis
-              has no probe chrome. Advanced Object Probe adds x, probe R (5–50 mm), and Tw; the probe stays on the
-              centerline. Kn_obj = λ / (2R); kinetic if Kn_obj ≥ {KN_OBJ_TRIGGER} (Khasawneh diffuse plate), continuum
+              sample at (x, y), not a probe and not a Mach disk. Incident T, n, U, M, Kn, E update at (x, |y|).
+              p_probe (plate face pressure) and q_probe (plate heat flux) appear only for Advanced Object Probe after
+              Run at the tap’s x on the centerline plate — not tank p_∞ and not a field sample. Thesis
+              has no probe chrome. Tap sets station (x, y). Advanced Object Probe uses that same x for the
+              centerline plate; probe R and Tw stay on Setup. There is no x editor. Kn_obj = λ / (2R); kinetic if
+              Kn_obj ≥ {KN_OBJ_TRIGGER} (Khasawneh diffuse plate), continuum
               otherwise (Billig / Newtonian + stagnation heat). The Mach disk is a free-jet shock and is independent
               of the probe.
             </p>

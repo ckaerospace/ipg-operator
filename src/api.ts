@@ -96,6 +96,8 @@ export type CharBody = {
   d_e_mm: number;
   nozzle_name: string;
   n_h: number;
+  hinj_min?: number;
+  hinj_max?: number;
 };
 
 export function postCharacteristics(body: CharBody, onSlow?: () => void): Promise<CharacteristicsResponse> {

@@ -4,6 +4,7 @@ export const P_TANK_MIN = 0.1;
 export const P_TANK_MAX = 5000;
 export const P_TANK_DEFAULT = 10;
 export const TANK_SLIDER_STEPS = 1000;
+export const PINJ_SLIDER_STEPS = 1000;
 export const TANK_SOLVE_DEBOUNCE_MS = 350;
 export const KN_EXIT_TRIGGER = 0.05;
 export const KN_OBJ_TRIGGER = 0.05;
@@ -32,6 +33,28 @@ export function sliderToTankPa(t: number): number {
   const a = Math.log10(P_TANK_MIN);
   const b = Math.log10(P_TANK_MAX);
   return clampTankPa(10 ** (a + (u / TANK_SLIDER_STEPS) * (b - a)));
+}
+
+export function clampPinjPa(p: number, min: number, max: number): number {
+  if (!Number.isFinite(p)) return min;
+  return Math.min(max, Math.max(min, p));
+}
+
+/** Log slider so 100 Pa stays hittable on a 5–2000 Pa (or family) track. */
+export function pinjPaToSlider(p: number, min: number, max: number): number {
+  const v = clampPinjPa(p, min, max);
+  const a = Math.log10(min);
+  const b = Math.log10(max);
+  return Math.round(((Math.log10(v) - a) / (b - a)) * PINJ_SLIDER_STEPS);
+}
+
+export function sliderToPinjPa(t: number, min: number, max: number, step: number): number {
+  const u = Math.min(PINJ_SLIDER_STEPS, Math.max(0, t));
+  const a = Math.log10(min);
+  const b = Math.log10(max);
+  const raw = 10 ** (a + (u / PINJ_SLIDER_STEPS) * (b - a));
+  const snapped = step > 0 ? Math.round(raw / step) * step : raw;
+  return clampPinjPa(snapped, min, max);
 }
 
 export function fmtTankPa(p: number): string {

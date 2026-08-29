@@ -63,7 +63,7 @@ export function snap125(v: number): number {
  * Packed 1–2–5 levels across [lo, hi] so a zoomed-in window still hits several
  * curves. Log decades use 1–2–5 per decade. Does not expand the span.
  */
-export function denseNiceLevels(lo: number, hi: number, target = 12): number[] {
+export function denseNiceLevels(lo: number, hi: number, target = 16): number[] {
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(hi > lo)) return [];
   const posLo = lo > 0 ? lo : hi > 0 ? Math.min(hi / 1e4, Math.max(hi * 1e-3, 1e-4)) : lo;
   const useLog = posLo > 0 && hi / posLo >= 100;
@@ -81,13 +81,13 @@ export function denseNiceLevels(lo: number, hi: number, target = 12): number[] {
     const step = niceStep(hi - lo, target);
     if (!(step > 0)) return [];
     const start = snapLevel(Math.ceil((lo + step * 0.15) / step) * step, step);
-    for (let k = 0; k < 28; k++) {
+    for (let k = 0; k < 36; k++) {
       const v = snapLevel(start + k * step, step);
       if (v >= hi - step * 0.06) break;
       if (v > lo) raw.push(v);
     }
   }
-  return uniqueSorted(raw).slice(0, 18);
+  return uniqueSorted(raw).slice(0, 22);
 }
 
 function uniqueSorted(vals: number[]): number[] {
@@ -103,14 +103,14 @@ function uniqueSorted(vals: number[]): number[] {
 }
 
 /**
- * ~8 isolines evenly spaced in the selected field (colorbar [lo, hi]).
+ * ~12 isolines evenly spaced in the selected field (colorbar [lo, hi]).
  * Equal Δ, or equal log10 decades when hi/lo > 10. Snapped to 1–2–5.
  */
 export function fieldIsoLevels(lo: number, hi: number): number[] {
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(hi > lo)) return [];
   const posLo = lo > 0 ? lo : hi > 0 ? Math.min(hi / 1e4, Math.max(hi * 1e-3, 1e-4)) : lo;
   const useLog = posLo > 0 && hi / posLo >= 10;
-  const target = 8;
+  const target = 12;
   const raw: number[] = [];
   if (useLog) {
     const a = Math.log10(posLo);
@@ -123,14 +123,14 @@ export function fieldIsoLevels(lo: number, hi: number): number[] {
     const step = niceStep(hi - lo, target);
     if (step > 0) {
       const start = snapLevel(Math.ceil((lo + step * 0.35) / step) * step, step);
-      for (let k = 0; k < 16; k++) {
+      for (let k = 0; k < 24; k++) {
         const v = snapLevel(start + k * step, step);
         if (v >= hi - step * 0.12) break;
         if (v <= lo + step * 0.12) continue;
         raw.push(v);
       }
     }
-    if (raw.length < 6) {
+    if (raw.length < 8) {
       raw.length = 0;
       for (let i = 1; i <= target; i++) raw.push(lo + (i / (target + 1)) * (hi - lo));
     }
@@ -138,7 +138,7 @@ export function fieldIsoLevels(lo: number, hi: number): number[] {
   const snapped = uniqueSorted(
     raw.map((v) => snap125(v)).filter((v) => Number.isFinite(v) && v > lo && v < hi),
   );
-  if (snapped.length >= 6) return snapped.slice(0, 10);
+  if (snapped.length >= 8) return snapped.slice(0, 14);
   if (snapped.length >= 3) return snapped;
   return niceIsoLevels(lo, hi);
 }

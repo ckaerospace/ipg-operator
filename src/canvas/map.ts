@@ -1,6 +1,5 @@
-import type { AxisFamily } from "../facility";
-import { usesGrams } from "../facility";
-import { fmtMdotLabel, fmtPower, moleLabel, speciesColor } from "../format";
+import { pinjLimits, usesGrams, type AxisFamily, type PinjUnit } from "../facility";
+import { fmtMdotLabel, fmtPinjTick, fmtPower, moleLabel, speciesColor } from "../format";
 import type { CharacteristicsResponse, Isoline } from "../types";
 import { mdotStroke } from "./color";
 import { denseNiceLevels } from "./isolines";
@@ -22,10 +21,14 @@ export type MapView = {
   h1: number;
 };
 
-export function axesView(ch: CharacteristicsResponse): MapView {
-  const p = ch.axes.pinj_Pa;
+export function axesView(ch: CharacteristicsResponse, family: AxisFamily): MapView {
   const h = ch.axes.hinj_MJ_kg;
-  return { p0: p[0] ?? 0, p1: p[1] ?? 250, h0: h[0] ?? 0, h1: h[1] ?? 40 };
+  return {
+    p0: 0,
+    p1: pinjLimits(family).max,
+    h0: h[0] ?? ch.hinj_MJ_kg[0] ?? 1,
+    h1: h[1] ?? ch.hinj_MJ_kg[ch.hinj_MJ_kg.length - 1] ?? 70,
+  };
 }
 
 export type MapLayout = {
@@ -82,9 +85,8 @@ export function mdotMgAt(ch: CharacteristicsResponse, pinj: number, hinj: number
   return Number.isFinite(k) ? k * pinj * 1e6 : NaN;
 }
 
-function mapAxesBox(ch: CharacteristicsResponse): { p0: number; p1: number; h0: number; h1: number } {
-  const fitted = axesView(ch);
-  return { p0: fitted.p0, p1: fitted.p1, h0: fitted.h0, h1: fitted.h1 };
+function mapAxesBox(ch: CharacteristicsResponse, family: AxisFamily): MapView {
+  return axesView(ch, family);
 }
 
 function tracePinjOfH(
@@ -107,14 +109,14 @@ function tracePinjOfH(
 }
 
 /**
- * Extra ṁ / power isolines on the computed pinj–hinj window only.
+ * Extra ṁ / power isolines on the family pinj box × CEA hinj sweep.
  * Packed 1–2–5 so a pinched-in view still has several curves. Not a new CEA solve.
  */
-export function packMapIsolines(ch: CharacteristicsResponse): {
+export function packMapIsolines(ch: CharacteristicsResponse, family: AxisFamily): {
   mdot: Isoline[];
   power: Isoline[];
 } {
-  const box = mapAxesBox(ch);
+  const box = mapAxesBox(ch, family);
   const samples: { m: number; pwr: number }[] = [];
   const nh = 24;
   const np = 16;
@@ -130,8 +132,8 @@ export function packMapIsolines(ch: CharacteristicsResponse): {
   const ms = samples.map((s) => s.m);
   const ps = samples.map((s) => s.pwr).filter((v) => v > 0);
   if (!ms.length) return { mdot: ch.mdot_isolines, power: ch.power_isolines };
-  const mLevels = denseNiceLevels(Math.min(...ms), Math.max(...ms), 12);
-  const pLevels = ps.length ? denseNiceLevels(Math.min(...ps), Math.max(...ps), 12) : [];
+  const mLevels = denseNiceLevels(Math.min(...ms), Math.max(...ms), 16);
+  const pLevels = ps.length ? denseNiceLevels(Math.min(...ps), Math.max(...ps), 16) : [];
 
   const mdot: Isoline[] = [];
   for (const M of mLevels) {
@@ -201,14 +203,16 @@ export function drawCharacteristics(opts: {
   cursor: { pinj: number; hinj: number };
   marks?: { pinj: number; hinj: number; label: string }[];
   view?: MapView;
+  pinjUnit?: PinjUnit;
 }): MapLayout {
   const { ctx, cssW, cssH, dpr, ch, family, cursor, marks } = opts;
+  const pinjUnit = opts.pinjUnit ?? "Pa";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
   ctx.fillStyle = "#0b1724";
   ctx.fillRect(0, 0, cssW, cssH);
 
-  const view = opts.view ?? axesView(ch);
+  const view = opts.view ?? axesView(ch, family);
   const lay = mapLayout(cssW, cssH, view);
   ctx.fillStyle = "#102033";
   ctx.fillRect(lay.l, lay.t, lay.w, lay.h);
@@ -253,7 +257,7 @@ export function drawCharacteristics(opts: {
     kinkLabs.push({ x: lay.l + 6, y: y - 2, text: k.label });
   }
 
-  const packed = packMapIsolines(ch);
+  const packed = packMapIsolines(ch, family);
   const nM = Math.max(1, packed.mdot.length - 1);
   const mdotLabs: { x: number; y: number; text: string; fill: string }[] = [];
   packed.mdot.forEach((iso, i) => {
@@ -390,9 +394,9 @@ export function drawCharacteristics(opts: {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   for (const p of pTicks) {
-    ctx.fillText(fmtTickNum(p, pStep), lay.toX(p), lay.t + lay.h + 6);
+    ctx.fillText(fmtPinjTick(p, pinjUnit, pStep), lay.toX(p), lay.t + lay.h + 6);
   }
-  ctx.fillText("p_inj  [Pa]", lay.l + lay.w / 2, cssH - 14);
+  ctx.fillText(pinjUnit === "kPa" ? "p_inj  [kPa]" : "p_inj  [Pa]", lay.l + lay.w / 2, cssH - 14);
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   for (const h of hTicks) {

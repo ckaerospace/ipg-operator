@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CharacteristicsResponse } from "../types";
-import { compositionDash, compositionDrawOrder, isElectron, isPositiveIon, packMapIsolines } from "./map";
+import { axesView, compositionDash, compositionDrawOrder, isElectron, isPositiveIon, packMapIsolines } from "./map";
 
 function fakeCh(): CharacteristicsResponse {
   const hinj_MJ_kg = Array.from({ length: 9 }, (_, i) => 5 + i * 4);
@@ -50,16 +50,20 @@ describe("composition stroke order", () => {
 });
 
 describe("packMapIsolines", () => {
-  it("packs more ṁ / power curves inside the computed axes", () => {
+  it("uses the family pinj clamp, not the API catalog clip", () => {
     const ch = fakeCh();
-    const packed = packMapIsolines(ch);
+    expect(axesView(ch, "IPG6-S")).toEqual({ p0: 0, p1: 2000, h0: 5, h1: 37 });
+    const packed = packMapIsolines(ch, "IPG6-S");
     expect(packed.mdot.length).toBeGreaterThan(ch.mdot_isolines.length);
     expect(packed.power.length).toBeGreaterThan(ch.power_isolines.length);
-    const box = { p0: 50, p1: 400, h0: 5, h1: 37 };
+    const box = { p0: 0, p1: 2000, h0: 5, h1: 37 };
+    let maxP = 0;
     for (const iso of [...packed.mdot, ...packed.power]) {
       expect(iso.pinj_Pa.length).toBeGreaterThanOrEqual(3);
       expect(iso.pinj_Pa.every((p) => p >= box.p0 && p <= box.p1)).toBe(true);
       expect(iso.hinj_MJ_kg.every((h) => h >= box.h0 && h <= box.h1)).toBe(true);
+      maxP = Math.max(maxP, ...iso.pinj_Pa);
     }
+    expect(maxP).toBeGreaterThan(400);
   });
 });

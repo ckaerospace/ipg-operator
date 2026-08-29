@@ -76,20 +76,35 @@ export function axisFamily(facility: FacilityId, dt_mm: number): AxisFamily {
   return "IPG6-S";
 }
 
+export const HINJ_MJ_MIN = 1;
+export const HINJ_MJ_MAX = 70;
+export const HINJ_MJ_STEP = 0.1;
+
+export type PinjUnit = "Pa" | "kPa";
+
+export function defaultPinjUnit(family: AxisFamily): PinjUnit {
+  return family === "IPG6-S" ? "Pa" : "kPa";
+}
+
+export function clampHinj(h: number): number {
+  if (!Number.isFinite(h)) return 23;
+  return Math.min(HINJ_MJ_MAX, Math.max(HINJ_MJ_MIN, h));
+}
+
 export function usesGrams(family: AxisFamily): boolean {
   return family !== "IPG6-S";
 }
 
 export function pinjLimits(family: AxisFamily): { min: number; max: number; step: number } {
-  if (family === "IPG4") return { min: 50, max: 5000, step: 10 };
-  if (family === "IPG3") return { min: 50, max: 3000, step: 10 };
-  return { min: 5, max: 250, step: 1 };
+  if (family === "IPG4") return { min: 50, max: 10000, step: 10 };
+  if (family === "IPG3") return { min: 50, max: 8000, step: 10 };
+  return { min: 5, max: 2000, step: 1 };
 }
 
 export function mdotMgLimits(family: AxisFamily): { min: number; max: number } {
-  if (family === "IPG4") return { min: 200, max: 5000 };
-  if (family === "IPG3") return { min: 400, max: 8000 };
-  return { min: 1, max: 50 };
+  if (family === "IPG4") return { min: 200, max: 10000 };
+  if (family === "IPG3") return { min: 400, max: 15000 };
+  return { min: 1, max: 200 };
 }
 
 export function coerceOperatingPoint(

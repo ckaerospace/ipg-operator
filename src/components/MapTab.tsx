@@ -11,8 +11,9 @@ import {
   type MapView,
 } from "../canvas/map";
 import { viewsClose } from "../canvas/viewZoom";
-import type { AxisFamily } from "../facility";
-import { fmtMdot, fmtPinj, fmtPower, moleLabel } from "../format";
+import type { AxisFamily, PinjUnit } from "../facility";
+import { fmtMdot, fmtPinjUnit, fmtPower, moleLabel } from "../format";
+import { PinjUnitChips } from "./PinjUnitChips";
 import { cssPoint, pairStats, PlotTouch, wheelScale } from "../gestures/plotTouch";
 import type { CharacteristicsResponse } from "../types";
 
@@ -26,6 +27,8 @@ type Props = {
   facility: string;
   initialPinj: number;
   initialHinj: number;
+  pinjUnit: PinjUnit;
+  onPinjUnit: (u: PinjUnit) => void;
   onRunPoint: (pinj: number, hinj: number) => void;
 };
 
@@ -39,6 +42,8 @@ export function MapTab({
   facility,
   initialPinj,
   initialHinj,
+  pinjUnit,
+  onPinjUnit,
   onRunPoint,
 }: Props) {
   const plotRef = useRef<HTMLCanvasElement>(null);
@@ -61,12 +66,12 @@ export function MapTab({
 
   useEffect(() => {
     if (!ch) return;
-    const fitted = axesView(ch);
+    const fitted = axesView(ch, family);
     fittedRef.current = fitted;
     viewRef.current = fitted;
     pinchView.current = null;
     setZoomed(false);
-  }, [ch]);
+  }, [ch, family]);
 
   useEffect(() => {
     if (!visible) return;
@@ -87,7 +92,7 @@ export function MapTab({
     const paint = () => {
       if (!ch) return;
       if (wrap.clientWidth < 2 || wrap.clientHeight < 2) return;
-      if (!viewRef.current) viewRef.current = axesView(ch);
+      if (!viewRef.current) viewRef.current = axesView(ch, family);
       fit(plot, wrap);
       const ctx = plot.getContext("2d");
       if (!ctx) return;
@@ -110,6 +115,7 @@ export function MapTab({
         cursor: cursorRef.current,
         marks,
         view: viewRef.current,
+        pinjUnit,
       });
       if (cc && cw) {
         fit(cc, cw);
@@ -153,14 +159,14 @@ export function MapTab({
       ro.disconnect();
       plot.removeEventListener("wheel", onWheel);
     };
-  }, [visible, ch, family, facility, cursor]);
+  }, [visible, ch, family, facility, cursor, pinjUnit]);
 
   const moveCursor = (e: PE<HTMLCanvasElement>) => {
     const lay = layRef.current;
     const plot = plotRef.current;
     if (!lay || !plot || !ch) return;
     const r = plot.getBoundingClientRect();
-    const view = viewRef.current ?? axesView(ch);
+    const view = viewRef.current ?? axesView(ch, family);
     const pinj = Math.min(view.p1, Math.max(view.p0, lay.fromP(e.clientX - r.left)));
     const hinj = Math.min(view.h1, Math.max(view.h0, lay.fromH(e.clientY - r.top)));
     setCursor({ pinj, hinj });
@@ -270,6 +276,9 @@ export function MapTab({
 
   return (
     <>
+      <div className="map-unit-bar">
+        <PinjUnitChips unit={pinjUnit} onChange={onPinjUnit} />
+      </div>
       <div className="map-plot" ref={plotWrap}>
         <canvas
           ref={plotRef}
@@ -285,7 +294,7 @@ export function MapTab({
         )}
       </div>
       <div className="map-read">
-        {fmtPinj(cursor.pinj)} · {cursor.hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
+        {fmtPinjUnit(cursor.pinj, pinjUnit)} · {cursor.hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
         {fmtPower(readout?.power_W ?? 0)}
         {majors.length > 0 ? " · " : ""}
         {majors.map((s) => `${moleLabel(s.key)} ${s.x.toFixed(2)}`).join("  ")}
