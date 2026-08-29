@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, postCharacteristics, postSolve } from "./api";
 import { MapTab } from "./components/MapTab";
 import { PlumeTab } from "./components/PlumeTab";
@@ -15,6 +15,18 @@ import {
   pinjLimits,
 } from "./facility";
 import { fmt, fmtFixed, fmtMdot } from "./format";
+import { operatorLayer, readLayer, writeLayer, type AppLayer } from "./layer";
+import {
+  clampDiskRmm,
+  clampProbeTw,
+  clampTankPa,
+  DISK_R_MM_DEFAULT,
+  jetMatch,
+  P_TANK_DEFAULT,
+  PROBE_TW_K,
+} from "./physics";
+import { parseShareSearch, shareUrl } from "./shareUrl";
+import { buildSolveBody } from "./solveBody";
 import type {
   CharacteristicsResponse,
   FacilityId,
@@ -25,19 +37,70 @@ import type {
   TabId,
 } from "./types";
 
-const NX = 49;
-const NY = 49;
+type Boot = {
+  facility: FacilityId;
+  gas: GasId;
+  custom: { dc: number; dt: number; de: number };
+  mode: SolveMode;
+  plumeMode: PlumeMode;
+  pinj: number;
+  mdotMg: number;
+  hinj: number;
+  pTank: number;
+  layer: "thesis" | "advanced";
+  diskX: number | null;
+  diskR: number;
+  diskTw: number;
+  autoRun: boolean;
+};
+
+function readBoot(): Boot {
+  const share = parseShareSearch(typeof window === "undefined" ? "" : window.location.search);
+  const stored = operatorLayer(readLayer());
+  const layer = share.layer ?? stored;
+  if (share.layer) writeLayer(share.layer);
+  const facility: FacilityId = share.facility ?? "IPG6-S";
+  const d = defaultPoint(facility);
+  const meta = FACILITY_META[facility];
+  const family = axisFamily(facility, meta.dt);
+  const coerced = coerceOperatingPoint(family, share.pinj ?? d.pinj, share.mdot ?? d.mdot_mg_s);
+  return {
+    facility,
+    gas: share.gas ?? d.gas,
+    custom: { dc: meta.dc, dt: meta.dt, de: meta.de },
+    mode: share.mode ?? "generator",
+    plumeMode: share.plume ?? "auto",
+    pinj: coerced.pinj,
+    mdotMg: coerced.mdot_mg_s,
+    hinj: share.hinj ?? d.hinj,
+    pTank: share.ptank ?? P_TANK_DEFAULT,
+    layer,
+    diskX: share.probe_x ?? null,
+    diskR: share.probe_r ?? DISK_R_MM_DEFAULT,
+    diskTw: PROBE_TW_K,
+    autoRun: share.run === true,
+  };
+}
+
+let shareRunStarted = false;
 
 export default function App() {
+  const [boot] = useState(readBoot);
   const [tab, setTab] = useState<TabId>("setup");
-  const [facility, setFacility] = useState<FacilityId>("IPG6-S");
-  const [gas, setGas] = useState<GasId>("O2");
-  const [custom, setCustom] = useState({ dc: 37, dt: 20, de: 40 });
-  const [mode, setMode] = useState<SolveMode>("generator");
-  const [plumeMode, setPlumeMode] = useState<PlumeMode>("auto");
-  const [pinj, setPinj] = useState(100);
-  const [mdotMg, setMdotMg] = useState(13);
-  const [hinj, setHinj] = useState(23);
+  const [facility, setFacility] = useState<FacilityId>(boot.facility);
+  const [gas, setGas] = useState<GasId>(boot.gas);
+  const [custom, setCustom] = useState(boot.custom);
+  const [mode, setMode] = useState<SolveMode>(boot.mode);
+  const [plumeMode, setPlumeMode] = useState<PlumeMode>(boot.plumeMode);
+  const [pinj, setPinj] = useState(boot.pinj);
+  const [mdotMg, setMdotMg] = useState(boot.mdotMg);
+  const [hinj, setHinj] = useState(boot.hinj);
+  const [pTank, setPTank] = useState(boot.pTank);
+  const [layer, setLayer] = useState<AppLayer>(boot.layer);
+  const [diskX, setDiskX] = useState<number | null>(boot.diskX);
+  const [diskR, setDiskR] = useState(boot.diskR);
+  const [diskTw, setDiskTw] = useState(boot.diskTw);
+  const advanced = layer === "advanced";
   const [running, setRunning] = useState(false);
   const [waking, setWaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,27 +152,33 @@ export default function App() {
       setError(null);
       try {
         const res = await postSolve(
-          {
+          buildSolveBody({
+            layer,
+            plumeMode,
             mode: m,
-            plume_mode: plumeMode,
             mixture: mixtureFor(gas),
-            basis: "mole",
             d_c_mm: geom.d_c_mm,
             d_t_mm: geom.d_t_mm,
             d_e_mm: geom.d_e_mm,
             nozzle_name: geom.nozzle_name,
             pinj_Pa: p,
-            hinj_MJ_kg: m === "enthalpy" ? h : undefined,
-            mdot_mg_s: m === "generator" ? md : undefined,
-            nx: NX,
-            ny: NY,
-          },
+            hinj_MJ_kg: h,
+            mdot_mg_s: md,
+            p_tank_Pa: pTank,
+            probe_x_m: diskX,
+            probe_r_mm: diskR,
+            probe_Tw_K: diskTw,
+          }),
           () => setWaking(true),
         );
         setSolve(res);
         setPinj(res.cea.pinj_Pa);
         setHinj(res.cea.hinj_MJ_kg);
         if (res.cea.mdot_mg_s) setMdotMg(res.cea.mdot_mg_s);
+        if (advanced) {
+          const tankEcho = res.plume.p_tank_Pa ?? res.p_tank_Pa;
+          if (typeof tankEcho === "number" && Number.isFinite(tankEcho)) setPTank(clampTankPa(tankEcho));
+        }
         if (override?.goPlume) setTab("plume");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Solve failed");
@@ -118,8 +187,14 @@ export default function App() {
         setWaking(false);
       }
     },
-    [mode, pinj, hinj, mdotMg, plumeMode, gas, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name],
+    [advanced, layer, mode, pinj, hinj, mdotMg, pTank, plumeMode, gas, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, diskX, diskR, diskTw],
   );
+
+  useEffect(() => {
+    if (!boot.autoRun || shareRunStarted) return;
+    shareRunStarted = true;
+    void runSolve();
+  }, [boot.autoRun, runSolve]);
 
   const openMap = (next: TabId) => {
     setTab(next);
@@ -163,11 +238,37 @@ export default function App() {
       .finally(() => setMapWake(false));
   };
 
-  const strip = useMemo(() => (solve ? stripItems(solve, family) : null), [solve, family]);
+  const heading = `PWK3 · ${facility}`;
+  useEffect(() => {
+    document.title = heading;
+  }, [heading]);
+
+  const strip = useMemo(
+    () => (solve ? stripItems(solve, family, pTank, advanced) : null),
+    [solve, family, pTank, advanced],
+  );
+
+  const shareHref = useMemo(
+    () =>
+      shareUrl(window.location.origin, {
+        layer: advanced ? "advanced" : "thesis",
+        facility,
+        gas,
+        mode,
+        pinj,
+        mdot_mg_s: mdotMg,
+        hinj,
+        pTank,
+        plumeMode,
+        diskX_m: diskX,
+        diskR_mm: diskR,
+      }),
+    [advanced, facility, gas, mode, pinj, mdotMg, hinj, pTank, plumeMode, diskX, diskR],
+  );
 
   return (
     <div className="app">
-      <header className="header">IPG  ·  {facility}</header>
+      <header className="header">{heading}</header>
       {strip && (
         <div className="strip">
           {strip.map((s) => (
@@ -192,11 +293,15 @@ export default function App() {
             pinj={pinj}
             mdot_mg_s={mdotMg}
             hinj={hinj}
+            pTank={pTank}
             family={family}
             pinjLim={pLim}
             mdotLim={mLim}
             kn={solve?.plume.kn_gll_exit ?? null}
             plumeSolvedMode={solve?.plume.mode ?? null}
+            npr={advanced && solve ? jetMatch(solve, pTank).npr : null}
+            regime={advanced && solve ? jetMatch(solve, pTank).regime : null}
+            layer={layer}
             onFacility={applyFacility}
             onGas={setGas}
             onCustom={(patch) => {
@@ -214,7 +319,13 @@ export default function App() {
             onPinj={setPinj}
             onMdot={setMdotMg}
             onHinj={setHinj}
+            onPTank={setPTank}
             onKnown={applyKnown}
+            onLayer={(next) => {
+              writeLayer(next);
+              setLayer(next);
+            }}
+            shareHref={shareHref}
           />
         </section>
         <section className={`pane${tab === "plume" ? " on" : ""}`} aria-hidden={tab !== "plume"}>
@@ -226,6 +337,13 @@ export default function App() {
             dc={geom.d_c_mm}
             dt={geom.d_t_mm}
             de={geom.d_e_mm}
+            advanced={advanced}
+            diskX={diskX}
+            diskR={diskR}
+            diskTw={diskTw}
+            onDiskX={setDiskX}
+            onDiskR={(r) => setDiskR(clampDiskRmm(r))}
+            onDiskTw={(t) => setDiskTw(clampProbeTw(t))}
           />
         </section>
         <section className={`pane${tab === "map" ? " on" : ""}`} aria-hidden={tab !== "map"}>
@@ -271,7 +389,7 @@ export default function App() {
   );
 }
 
-function stripItems(solve: SolveResponse, family: ReturnType<typeof axisFamily>) {
+function stripItems(solve: SolveResponse, family: ReturnType<typeof axisFamily>, pTank: number, advanced: boolean) {
   const ex = solve.cea.exit;
   const mf = ex.mole_fractions ?? {};
   const xO = ex.x_O ?? mf.O ?? 0;
@@ -279,14 +397,20 @@ function stripItems(solve: SolveResponse, family: ReturnType<typeof axisFamily>)
   const eO = solve.plume.e_O_eV[Math.floor(solve.plume.ny / 2) * solve.plume.nx] ?? null;
   const kn = solve.plume.kn_gll_exit;
   const mode = solve.plume.mode;
-  return [
+  const jet = jetMatch(solve, pTank);
+  const nprLab = jet.npr == null ? "—" : fmtFixed(jet.npr, 2);
+  const jetLab = jet.regime ? `${nprLab} · ${jet.regime}` : nprLab;
+  const rows = [
     { k: "hinj", v: `${fmtFixed(solve.cea.hinj_MJ_kg, 2)} MJ/kg` },
     { k: "T_exit", v: `${fmt(ex.T0, 0)} K` },
     { k: "U", v: `${fmtFixed(ex.U0 / 1000, 2)} km/s` },
     { k: "x_O", v: fmtFixed(xO, 3) },
     { k: "x_e", v: fmtFixed(xe, 3) },
     { k: "E_O", v: eO == null ? "—" : `${fmtFixed(eO, 2)} eV` },
-    { k: "Kn_exit", v: `${kn.toPrecision(2)} → ${mode}` },
-    { k: "ṁ", v: fmtMdot(solve.cea.mdot_mg_s, family) },
   ];
+  if (advanced) {
+    rows.push({ k: "NPR", v: jetLab }, { k: "Kn_exit", v: `${kn.toPrecision(2)} → ${mode}` });
+  }
+  rows.push({ k: "ṁ", v: fmtMdot(solve.cea.mdot_mg_s, family) });
+  return rows;
 }

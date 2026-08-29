@@ -1,4 +1,4 @@
-const CACHE = "ipg-shell-v1";
+const CACHE = "pwk3-shell-v1";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

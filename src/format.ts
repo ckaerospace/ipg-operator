@@ -28,6 +28,21 @@ export function fmtPower(w: number): string {
   return `${fmt(w, w >= 100 ? 0 : 1)} W`;
 }
 
+export function fmtPa(p: number): string {
+  if (!Number.isFinite(p)) return "—";
+  if (Math.abs(p) >= 1000) return `${fmtFixed(p / 1000, 2)} kPa`;
+  if (Math.abs(p) >= 1) return `${fmtFixed(p, p >= 10 ? 1 : 2)} Pa`;
+  if (Math.abs(p) >= 1e-3) return `${fmtFixed(p * 1000, 2)} mPa`;
+  return `${p.toExponential(2)} Pa`;
+}
+
+export function fmtHeatFlux(q: number): string {
+  if (!Number.isFinite(q)) return "—";
+  if (Math.abs(q) >= 1e6) return `${fmtFixed(q / 1e6, 2)} MW/m²`;
+  if (Math.abs(q) >= 1000) return `${fmtFixed(q / 1000, 2)} kW/m²`;
+  return `${fmtFixed(q, 1)} W/m²`;
+}
+
 export function fmtMdotLabel(mdot_mg_s: number, family: AxisFamily): string {
   if (usesGrams(family)) {
     const g = mdot_mg_s / 1000;

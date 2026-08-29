@@ -1,5 +1,6 @@
 import type { FieldId, ProbeSample, SolveResponse } from "../types";
 import { K_EV } from "../format";
+import { parseBarrel, type Xy } from "../physics";
 import { colorize } from "./color";
 import { sampleGrid } from "./sample";
 
@@ -182,6 +183,101 @@ function drawNozzle(
   ctx.stroke();
 }
 
+function strokeXy(ctx: CanvasRenderingContext2D, map: WorldMap, pts: Xy[]) {
+  if (pts.length < 2) return;
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const X = map.toX(p.x);
+    const Y = map.toY(p.y);
+    if (i === 0) ctx.moveTo(X, Y);
+    else ctx.lineTo(X, Y);
+  });
+  ctx.stroke();
+}
+
+function barrelRadiusAt(pts: Xy[], x: number, fallback: number): number {
+  if (!pts.length) return fallback;
+  let best = fallback;
+  let near = Infinity;
+  for (const p of pts) {
+    const d = Math.abs(p.x - x);
+    if (d < near) {
+      near = d;
+      best = Math.abs(p.y);
+    }
+    if (p.x <= x) best = Math.max(best, Math.abs(p.y));
+  }
+  return best > 0 ? best : fallback;
+}
+
+function drawDisk(
+  ctx: CanvasRenderingContext2D,
+  map: WorldMap,
+  disk: { x: number; r: number },
+  bow: Xy[],
+) {
+  const { x, r } = disk;
+  if (!(r > 0) || !Number.isFinite(x)) return;
+  const X = map.toX(x);
+  const Y0 = map.toY(0);
+  const Yr = map.toY(r);
+  const hh = Math.abs(Yr - Y0);
+  const rx = Math.max(2.4, Math.abs(map.toX(x + Math.min(r * 0.18, 0.004)) - X));
+  const cy = (Y0 + Yr) / 2;
+
+  ctx.save();
+  if (bow.length >= 2) {
+    ctx.strokeStyle = "rgba(255, 168, 120, 0.9)";
+    ctx.lineWidth = 1.15;
+    ctx.setLineDash([]);
+    strokeXy(ctx, map, bow.filter((p) => p.y >= -1e-9));
+  }
+
+  ctx.fillStyle = "rgba(214, 222, 232, 0.92)";
+  ctx.strokeStyle = "#2ee6c5";
+  ctx.lineWidth = 1.35;
+  ctx.beginPath();
+  ctx.ellipse(X, cy, rx, Math.max(2, hh / 2), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillRect(X - Math.max(1.2, rx * 0.35), Math.min(Y0, Yr), Math.max(2.4, rx * 0.7), hh);
+  ctx.restore();
+}
+
+function drawShocks(ctx: CanvasRenderingContext2D, map: WorldMap, solve: SolveResponse) {
+  const pl = solve.plume;
+  const barrel = parseBarrel(pl.barrel_xy);
+  ctx.save();
+  ctx.strokeStyle = "rgba(232, 238, 245, 0.72)";
+  ctx.lineWidth = 1.15;
+  ctx.setLineDash([]);
+  if (barrel.length >= 2) {
+    strokeXy(ctx, map, barrel);
+    strokeXy(
+      ctx,
+      map,
+      barrel.map((p) => ({ x: p.x, y: -p.y })),
+    );
+  }
+  if (pl.shock_applied === false) {
+    ctx.restore();
+    return;
+  }
+  const xm = pl.x_mach_disk_m;
+  if (typeof xm !== "number" || !Number.isFinite(xm)) {
+    ctx.restore();
+    return;
+  }
+  const r = barrelRadiusAt(barrel, xm, Math.max(pl.H, 1e-4));
+  ctx.strokeStyle = "rgba(245, 215, 110, 0.85)";
+  ctx.lineWidth = 1.35;
+  ctx.beginPath();
+  ctx.moveTo(map.toX(xm), map.toY(-r));
+  ctx.lineTo(map.toX(xm), map.toY(r));
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawAxes(
   ctx: CanvasRenderingContext2D,
   map: WorldMap,
@@ -315,8 +411,11 @@ export function drawPlumeFrame(opts: {
   de: number;
   particles: Particle[];
   probe: { x: number; y: number } | null;
+  disk?: { x: number; r: number } | null;
+  bow?: Xy[];
+  showShocks?: boolean;
 }): { map: WorldMap } {
-  const { ctx, cssW, cssH, dpr, solve, field, view, dc, dt, de, particles, probe } = opts;
+  const { ctx, cssW, cssH, dpr, solve, field, view, dc, dt, de, particles, probe, disk, bow, showShocks } = opts;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
   ctx.fillStyle = "#0a1520";
@@ -356,9 +455,11 @@ export function drawPlumeFrame(opts: {
       ctx.fill();
     }
     ctx.globalCompositeOperation = "source-over";
+    if (showShocks) drawShocks(ctx, map, solve);
   }
 
   drawNozzle(ctx, map, dc, dt, de, view);
+  if (disk) drawDisk(ctx, map, disk, bow ?? []);
 
   if (!solve) {
     const tx = map.toX(Math.max(view.x1 * 0.42, 4 * (de / 2000)));

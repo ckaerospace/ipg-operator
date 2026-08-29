@@ -1,6 +1,11 @@
+import { useState } from "react";
 import { FACILITY_META, GASES, KNOWN_POINTS, type AxisFamily } from "../facility";
-import { fmtMdot, fmtPinj } from "../format";
+import { fmtFixed, fmtMdot, fmtPinj } from "../format";
+import type { AppLayer } from "../layer";
+import { P_TANK_MAX, P_TANK_MIN } from "../physics";
+import { copyText } from "../shareUrl";
 import type { FacilityId, GasId, PlumeMode, SolveMode } from "../types";
+import { LayerBar } from "./LayerBar";
 
 type Props = {
   facility: FacilityId;
@@ -11,11 +16,15 @@ type Props = {
   pinj: number;
   mdot_mg_s: number;
   hinj: number;
+  pTank: number;
   family: AxisFamily;
   pinjLim: { min: number; max: number; step: number };
   mdotLim: { min: number; max: number };
   kn: number | null;
   plumeSolvedMode: string | null;
+  npr: number | null;
+  regime: string | null;
+  layer: AppLayer;
   onFacility: (id: FacilityId) => void;
   onGas: (id: GasId) => void;
   onCustom: (patch: Partial<{ dc: number; dt: number; de: number }>) => void;
@@ -24,7 +33,10 @@ type Props = {
   onPinj: (v: number) => void;
   onMdot: (mg: number) => void;
   onHinj: (v: number) => void;
+  onPTank: (v: number) => void;
   onKnown: (id: string) => void;
+  onLayer: (layer: "thesis" | "advanced") => void;
+  shareHref: string;
 };
 
 const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
@@ -37,9 +49,13 @@ export function SetupTab(p: Props) {
   const mdotMax = grams ? p.mdotLim.max / 1000 : p.mdotLim.max;
   const mdotStep = grams ? 0.01 : 0.1;
 
+  const advanced = p.layer === "advanced";
+
   return (
     <div className="scroll">
-      <div className="h-label">Facility</div>
+      <LayerBar current={p.layer === "manual" ? "thesis" : p.layer} onThesisOrAdvanced={p.onLayer} />
+
+      <div className="h-label">Generator</div>
       <div className="chips">
         {FACILITIES.map((id) => (
           <button key={id} className={`chip${p.facility === id ? " on" : ""}`} onClick={() => p.onFacility(id)}>
@@ -176,25 +192,85 @@ export function SetupTab(p: Props) {
       </div>
 
       <div className="h-label">Plume</div>
-      <div className="chips">
-        {(
-          [
-            ["auto", "Auto"],
-            ["collisionless", "Collisionless"],
-            ["sudden_freeze", "Sudden-freeze"],
-          ] as const
-        ).map(([id, lab]) => (
-          <button key={id} className={`chip${p.plumeMode === id ? " on" : ""}`} onClick={() => p.onPlumeMode(id)}>
-            {lab}
-          </button>
-        ))}
-      </div>
-      {p.kn != null && (
-        <div className="kn">
-          Kn_exit = {p.kn.toPrecision(3)}
-          {p.plumeSolvedMode ? `  →  ${p.plumeSolvedMode}` : ""}
+      {advanced ? (
+        <>
+          <div className="chips">
+            {(
+              [
+                ["auto", "Auto"],
+                ["collisionless", "Collisionless"],
+                ["sudden_freeze", "Sudden-freeze"],
+              ] as const
+            ).map(([id, lab]) => (
+              <button key={id} className={`chip${p.plumeMode === id ? " on" : ""}`} onClick={() => p.onPlumeMode(id)}>
+                {lab}
+              </button>
+            ))}
+          </div>
+          <label className="field" style={{ marginTop: 14 }}>
+            <span>tank pressure</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={P_TANK_MIN}
+              max={P_TANK_MAX}
+              step={0.1}
+              value={p.pTank}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) p.onPTank(n);
+              }}
+            />
+            <span className="field-hint">Pa · background the jet expands into (0.1–5000)</span>
+          </label>
+          {p.kn != null && (
+            <div className="kn">
+              Kn_exit = {p.kn.toPrecision(3)}
+              {p.plumeSolvedMode ? `  →  ${p.plumeSolvedMode}` : ""}
+              {p.npr != null ? (
+                <>
+                  <br />
+                  NPR = p_e / p_tank = {fmtFixed(p.npr, 2)}
+                  {p.regime ? `  ·  ${p.regime}` : ""}
+                </>
+              ) : null}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="locked-note">
+          <div className="title">Thesis: collisionless jet</div>
+          <p>
+            Khasawneh–Cai 2-D free-molecular map from a frozen CEA exit. Auto and sudden-freeze stay off. A probe disk
+            on the centerline is the collisionless plate.
+          </p>
         </div>
       )}
+
+      <div className="share-row">
+        <CopyLink href={p.shareHref} />
+      </div>
     </div>
+  );
+}
+
+function CopyLink({ href }: { href: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  return (
+    <>
+      <button
+        type="button"
+        className="copy-link"
+        onClick={() => {
+          void copyText(href).then((ok) => {
+            setState(ok ? "copied" : "failed");
+            window.setTimeout(() => setState("idle"), 1800);
+          });
+        }}
+      >
+        {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy link"}
+      </button>
+      <span className="field-hint">Same generator, gas, and disk. They tap Run.</span>
+    </>
   );
 }

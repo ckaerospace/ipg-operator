@@ -69,10 +69,22 @@ export type SolveBody = {
   mdot_mg_s?: number;
   nx: number;
   ny: number;
+  p_tank_Pa?: number;
+  probe_x_m?: number;
+  probe_r_mm?: number;
+  probe_Tw_K?: number;
 };
 
-export function postSolve(body: SolveBody, onSlow?: () => void): Promise<SolveResponse> {
-  return apiFetch<SolveResponse>("/api/solve", { method: "POST", body: JSON.stringify(body) }, onSlow);
+export async function postSolve(body: SolveBody, onSlow?: () => void): Promise<SolveResponse> {
+  try {
+    return await apiFetch<SolveResponse>("/api/solve", { method: "POST", body: JSON.stringify(body) }, onSlow);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 422 && body.probe_x_m != null) {
+      const { probe_x_m: _x, probe_r_mm: _r, probe_Tw_K: _t, ...rest } = body;
+      return apiFetch<SolveResponse>("/api/solve", { method: "POST", body: JSON.stringify(rest) }, onSlow);
+    }
+    throw e;
+  }
 }
 
 export type CharBody = {

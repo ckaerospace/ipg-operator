@@ -7,6 +7,19 @@ export type FieldId = "t_ratio" | "n_ratio" | "h_tot" | "speed" | "mach" | "e_ki
 
 export type Mixture = Record<string, number>;
 
+export type ProbeRegime = "kinetic" | "continuum";
+
+/** Optional plate / calorimeter return from POST /api/solve. */
+export type PlumeProbe = {
+  x_m?: number;
+  r_mm?: number;
+  Tw_K?: number;
+  p_Pa?: number | null;
+  q_W_m2?: number | null;
+  Kn_obj?: number | null;
+  regime?: string | null;
+};
+
 export type Geometry = {
   name: string;
   d_c_mm: number;
@@ -33,6 +46,9 @@ export type CeaExit = {
   x_He?: number;
   x_Ar?: number;
   x_ion?: number;
+  p_e_Pa?: number;
+  p_Pa?: number;
+  p?: number;
 };
 
 export type SolveResponse = {
@@ -75,7 +91,20 @@ export type SolveResponse = {
     e_O_eV: number[];
     h_tot_MJ_kg: number[];
     h_tot_ratio: number[];
+    p_tank_Pa?: number;
+    p_e_Pa?: number;
+    npr?: number;
+    regime?: string;
+    barrel_xy?: unknown;
+    bow_xy?: unknown;
+    x_mach_disk_m?: number | null;
+    shock_applied?: boolean;
+    probe?: PlumeProbe;
   };
+  p_tank_Pa?: number;
+  p_e_Pa?: number;
+  npr?: number;
+  regime?: string;
 };
 
 export type Kink = {

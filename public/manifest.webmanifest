@@ -1,7 +1,7 @@
 {
-  "name": "IPG",
-  "short_name": "IPG",
-  "description": "Plasma wind-tunnel operator console",
+  "name": "PWK3",
+  "short_name": "PWK3",
+  "description": "PWK3 operator console — inductive generators IPG3, IPG4, IPG6-S",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
