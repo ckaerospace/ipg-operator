@@ -1,4 +1,4 @@
-import type { FacilityId, GasId, Mixture } from "./types";
+import type { FacilityId, Mixture, NamedGasId } from "./types";
 
 export const FACILITY_META: Record<
   FacilityId,
@@ -8,7 +8,7 @@ export const FACILITY_META: Record<
     dt: number;
     de: number;
     nozzle: string;
-    defaultGas: GasId;
+    defaultGas: NamedGasId;
     apiName: string;
   }
 > = {
@@ -50,7 +50,7 @@ export const FACILITY_META: Record<
   },
 };
 
-export const GASES: { id: GasId; label: string; mixture: Mixture }[] = [
+export const GASES: { id: NamedGasId; label: string; mixture: Mixture }[] = [
   { id: "O2", label: "O2", mixture: { O2: 1 } },
   { id: "CO2", label: "CO2", mixture: { CO2: 1 } },
   { id: "N2", label: "N2", mixture: { N2: 1 } },
@@ -59,7 +59,7 @@ export const GASES: { id: GasId; label: string; mixture: Mixture }[] = [
   { id: "Ar", label: "Ar", mixture: { Ar: 1 } },
 ];
 
-export function mixtureFor(gas: GasId): Mixture {
+export function mixtureFor(gas: NamedGasId): Mixture {
   return GASES.find((g) => g.id === gas)!.mixture;
 }
 
@@ -113,7 +113,7 @@ export function defaultPoint(facility: FacilityId): {
   pinj: number;
   mdot_mg_s: number;
   hinj: number;
-  gas: GasId;
+  gas: NamedGasId;
 } {
   if (facility === "IPG4") return { pinj: 2900, mdot_mg_s: 2200, hinj: 17.4, gas: "CO2" };
   if (facility === "IPG3") return { pinj: 1450, mdot_mg_s: 3210, hinj: 17.9, gas: "O2" };
@@ -124,7 +124,7 @@ export type KnownPoint = {
   id: string;
   label: string;
   facility: FacilityId;
-  gas: GasId;
+  gas: NamedGasId;
   pinj: number;
   hinj?: number;
   mdot_mg_s?: number;

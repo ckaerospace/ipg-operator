@@ -7,7 +7,7 @@ import { BugReportLink, RefsList } from "./RefsList";
 
 export function ModelPage() {
   useEffect(() => {
-    document.title = "PWK3 · Manual";
+    document.title = "Plasma wind tunnel · Manual";
   }, []);
   return (
     <div className="paper">
@@ -19,7 +19,7 @@ export function ModelPage() {
             goLayer("thesis");
           }}
         >
-          PWK3
+          Plasma wind tunnel
         </a>
         <span>Manual</span>
       </header>
@@ -27,7 +27,7 @@ export function ModelPage() {
         <LayerBar current="manual" />
       </div>
       <article className="paper-body">
-        <h1>PWK3 plume model</h1>
+        <h1>Plume model</h1>
         <p className="lede">
           Operator manual for the three layers. Thesis is a collisionless 2-D jet from a frozen CEA exit. Advanced
           adds a Knudsen switch, sudden-freeze, and an optional tank / barrel–disk overlay. This page is not a
@@ -38,6 +38,7 @@ export function ModelPage() {
         <h2>1. What the operator sets</h2>
         <p>
           Generator (IPG6-S, IPG4, IPG3, or Custom Dc / Dt / De) and gas fix the nozzle and the mixture sent to CEA.
+          Custom gas is a mole mix of O2, N2, CO2, He, and Ar sent to CEA — not a new solver.
           A point is measured chamber pressure <i>p</i>
           <sub>inj</sub> plus mass flow ṁ, or the same <i>p</i>
           <sub>inj</sub> with assigned specific enthalpy <i>h</i>
@@ -46,7 +47,7 @@ export function ModelPage() {
           <sub>tank</sub> (default 10&nbsp;Pa, typical 0.1–5000&nbsp;Pa) is the background the jet expands into,{" "}
           <i>p</i>
           <sub>∞</sub>, and Object is None (empty jet) or Disk. The operator chrome header stays{" "}
-          <span className="mono">PWK3 · {"{generator}"}</span>.
+          <span className="mono">Plasma wind tunnel · {"{generator}"}</span>.
         </p>
         <p>
           <i>h</i>
@@ -77,8 +78,9 @@ export function ModelPage() {
           The kernel is the Khasawneh–Cai 2-D free-molecular map from that frozen CEA exit (Cai &amp; Boyd 2007;{" "}
           <a href="https://doi.org/10.2514/1.25893">doi:10.2514/1.25893</a>,{" "}
           <a href="https://doi.org/10.2514/1.32173">doi:10.2514/1.32173</a>; Khasawneh, Liu &amp; Cai 2010,{" "}
-          <a href="https://doi.org/10.1063/1.3490409">doi:10.1063/1.3490409</a>). Tracers spawn on the exit lip and
-          follow sampled (<i>u</i>, <i>v</i>). There is no continuum shock system in this layer.
+          <a href="https://doi.org/10.1063/1.3490409">doi:10.1063/1.3490409</a>). The selected field is bilinear-sampled
+          from the <span className="mono">nx</span>×<span className="mono">ny</span> grid onto a smooth color map.
+          There is no continuum shock system in this layer.
         </p>
 
         <h2>4. Kn_exit trigger</h2>
@@ -170,14 +172,14 @@ export function ModelPage() {
 
         <h2>8. Probe disk</h2>
         <p>
-          Thesis always allows a centerline plate. Advanced Object is None (default: no body, probe fields omitted) or
-          Disk. When Disk is on, tap the jet (or set <span className="mono">x</span>, <span className="mono">R</span>)
-          to place a sample / calorimeter disk on the centerline. Default radius is 20&nbsp;mm (editable 5–50&nbsp;mm).
-          Wall temperature is 300&nbsp;K, shown only in Advanced. The disk is a rectangle / ellipse at <i>x</i>, |<i>y</i>
+          Thesis always allows a centerline plate: tap the jet to place it. Radius is fixed at 20&nbsp;mm — no x / disk
+          R row on Thesis. Advanced Object is None (default: no body, probe fields omitted) or Disk. When Disk is on,
+          the Plume row edits <span className="mono">x</span>, disk R (5–50&nbsp;mm, default 20), and Tw (300&nbsp;K).
+          The disk is a rectangle / ellipse at <i>x</i>, |<i>y</i>
           |&nbsp;&lt;&nbsp;<i>R</i>. A thin bow is stroked in Advanced when the API returns{" "}
           <span className="mono">bow_xy</span> — not a filled sheet over the canvas. Incident <i>n</i>, <i>T</i>,{" "}
-          <i>U</i> come from the existing grid sample. Pressure <i>p</i> and heat flux <i>q</i> fill when the solve
-          returns <span className="mono">plume.probe</span>.
+          <i>U</i> update from the grid as the station is dragged. Face <i>p</i> and <i>q</i> fill in the same readout
+          after Run at that <i>x</i>, <i>R</i> — not on every drag.
         </p>
         <p>
           Regime uses object Knudsen number Kn_obj = <i>λ</i> / (2<i>R</i>) with trigger
@@ -200,7 +202,7 @@ export function ModelPage() {
         <p>
           A Copy link control on Setup encodes the current point in the URL (
           <span className="mono">
-            layer, facility, gas, mode, pinj, mdot, hinj, ptank, plume, object, probe_x, probe_r
+            layer, facility, gas, mix, mode, pinj, mdot, hinj, ptank, plume, object, probe_x, probe_r
           </span>
           ). Opening that URL applies the fields and does not auto-Run unless <span className="mono">run=1</span>.
         </p>

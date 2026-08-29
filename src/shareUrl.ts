@@ -1,15 +1,19 @@
-import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "./types";
+import type { CustomMix } from "./mixture";
+import { emptyCustomMix, encodeMixParam, parseMixParam } from "./mixture";
 import {
   clampDiskRmm,
   clampDiskXm,
   clampTankPa,
   DISK_R_MM_DEFAULT,
 } from "./physics";
+import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "./types";
+import { NAMED_GASES } from "./types";
 
 export type SharePoint = {
   layer?: "thesis" | "advanced";
   facility?: FacilityId;
   gas?: GasId;
+  mix?: CustomMix;
   mode?: SolveMode;
   pinj?: number;
   mdot?: number;
@@ -26,6 +30,7 @@ export type ShareFields = {
   layer: "thesis" | "advanced";
   facility: FacilityId;
   gas: GasId;
+  customMix?: CustomMix;
   mode: SolveMode;
   pinj: number;
   mdot_mg_s: number;
@@ -38,7 +43,7 @@ export type ShareFields = {
 };
 
 const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
-const GASES: GasId[] = ["O2", "CO2", "N2", "Air", "HeO2", "Ar"];
+const GASES: GasId[] = [...NAMED_GASES, "custom"];
 const MODES: SolveMode[] = ["generator", "enthalpy"];
 const PLUMES: PlumeMode[] = ["auto", "collisionless", "sudden_freeze"];
 const OBJECTS: JetObject[] = ["none", "disk"];
@@ -65,6 +70,10 @@ export function parseShareSearch(search: string): SharePoint {
   if (facility) out.facility = facility;
   const gas = pick(q.get("gas"), GASES);
   if (gas) out.gas = gas;
+  if (gas === "custom") {
+    const mix = parseMixParam(q.get("mix"));
+    if (mix) out.mix = mix;
+  }
   const mode = pick(q.get("mode"), MODES);
   if (mode) out.mode = mode;
   const plume = pick(q.get("plume"), PLUMES);
@@ -93,6 +102,10 @@ export function encodeShareSearch(fields: ShareFields): string {
   q.set("layer", fields.layer);
   q.set("facility", fields.facility);
   q.set("gas", fields.gas);
+  if (fields.gas === "custom") {
+    const mix = encodeMixParam(fields.customMix ?? emptyCustomMix());
+    if (mix) q.set("mix", mix);
+  }
   q.set("mode", fields.mode);
   q.set("pinj", String(fields.pinj));
   if (fields.mode === "generator") q.set("mdot", String(fields.mdot_mg_s));
@@ -103,10 +116,11 @@ export function encodeShareSearch(fields: ShareFields): string {
     q.set("ptank", String(clampTankPa(fields.pTank)));
     q.set("object", fields.object === "disk" ? "disk" : "none");
   }
-  const diskOn = fields.layer !== "advanced" || fields.object === "disk";
-  if (diskOn && fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
+  const advDisk = fields.layer === "advanced" && fields.object === "disk";
+  const thesisPlate = fields.layer !== "advanced";
+  if ((advDisk || thesisPlate) && fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
     q.set("probe_x", String(clampDiskXm(fields.diskX_m)));
-    q.set("probe_r", String(clampDiskRmm(fields.diskR_mm ?? DISK_R_MM_DEFAULT)));
+    if (advDisk) q.set("probe_r", String(clampDiskRmm(fields.diskR_mm ?? DISK_R_MM_DEFAULT)));
   }
   return q.toString();
 }
@@ -159,6 +173,7 @@ export function shareHasFields(p: SharePoint): boolean {
     p.layer != null ||
     p.facility != null ||
     p.gas != null ||
+    p.mix != null ||
     p.mode != null ||
     p.pinj != null ||
     p.mdot != null ||

@@ -342,6 +342,31 @@ export function mapReadout(
   return { mdot_mg_s, power_W, xs };
 }
 
+export function isElectron(key: string): boolean {
+  return key === "e-";
+}
+
+export function isPositiveIon(key: string): boolean {
+  return key.endsWith("+");
+}
+
+/** Neutrals, then cations, then dashed e- on top so O+ shows in the dash gaps. */
+export function compositionDrawOrder(keys: string[]): string[] {
+  const neutrals: string[] = [];
+  const electrons: string[] = [];
+  const ions: string[] = [];
+  for (const key of keys) {
+    if (isElectron(key)) electrons.push(key);
+    else if (isPositiveIon(key)) ions.push(key);
+    else neutrals.push(key);
+  }
+  return [...neutrals, ...ions, ...electrons];
+}
+
+export function compositionDash(key: string): number[] {
+  return isElectron(key) ? [4, 3] : [];
+}
+
 export function drawComposition(opts: {
   ctx: CanvasRenderingContext2D;
   cssW: number;
@@ -358,17 +383,20 @@ export function drawComposition(opts: {
 
   ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
   const keys = Object.keys(ch.chamber.x).filter((key) => Math.max(...ch.chamber.x[key]) >= 0.001);
+  const legendKeys = compositionDrawOrder(keys);
   const gap = 10;
   const rowH = 12;
+  const swatchW = 12;
   const l = 40;
   const r = 8;
   const b = 24;
   const maxLegendW = Math.max(40, cssW - l - r);
+  const itemW = (key: string) => swatchW + 4 + ctx.measureText(moleLabel(key)).width + gap;
   const rows: string[][] = [];
   let cur: string[] = [];
   let curW = 0;
-  for (const key of keys) {
-    const tw = ctx.measureText(moleLabel(key)).width + gap;
+  for (const key of legendKeys) {
+    const tw = itemW(key);
     if (cur.length > 0 && curW + tw > maxLegendW) {
       rows.push(cur);
       cur = [key];
@@ -395,10 +423,18 @@ export function drawComposition(opts: {
     let lx = l;
     const ly = legendTop + ri * rowH;
     for (const key of row) {
-      ctx.fillStyle = speciesColor(key);
       const lab = moleLabel(key);
-      ctx.fillText(lab, lx, ly);
-      lx += ctx.measureText(lab).width + gap;
+      ctx.strokeStyle = speciesColor(key);
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash(compositionDash(key));
+      ctx.beginPath();
+      ctx.moveTo(lx, ly + 6);
+      ctx.lineTo(lx + swatchW, ly + 6);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = speciesColor(key);
+      ctx.fillText(lab, lx + swatchW + 4, ly);
+      lx += itemW(key);
     }
   });
 
@@ -426,10 +462,11 @@ export function drawComposition(opts: {
   }
   ctx.setLineDash([]);
 
-  for (const key of keys) {
+  for (const key of compositionDrawOrder(keys)) {
     const arr = ch.chamber.x[key];
     ctx.strokeStyle = speciesColor(key);
-    ctx.lineWidth = key === "e-" ? 1.8 : 1.5;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash(compositionDash(key));
     ctx.beginPath();
     ch.hinj_MJ_kg.forEach((hv, i) => {
       const x = toX(hv);
@@ -439,6 +476,7 @@ export function drawComposition(opts: {
     });
     ctx.stroke();
   }
+  ctx.setLineDash([]);
 
   ctx.strokeStyle = "#2ee6c5";
   ctx.setLineDash([4, 3]);

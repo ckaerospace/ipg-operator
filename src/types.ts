@@ -1,6 +1,9 @@
 export type FacilityId = "IPG6-S" | "IPG4" | "IPG3" | "Custom";
 export type TabId = "setup" | "plume" | "map";
-export type GasId = "O2" | "CO2" | "N2" | "Air" | "HeO2" | "Ar";
+export const NAMED_GASES = ["O2", "CO2", "N2", "Air", "HeO2", "Ar"] as const;
+export type NamedGasId = (typeof NAMED_GASES)[number];
+/** Named IPG presets plus the mole-fraction editor. Not a Custom nozzle. */
+export type GasId = NamedGasId | "custom";
 export type SolveMode = "generator" | "enthalpy";
 export type PlumeMode = "auto" | "collisionless" | "sudden_freeze";
 /** Advanced Setup: whether a body sits in the jet. Thesis always allows the disk. */

@@ -1,15 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as PE } from "react";
-import {
-  drawPlumeFrame,
-  emptyView,
-  fitView,
-  sampleProbe,
-  seedParticles,
-  stepParticles,
-  type Particle,
-  type View,
-  type WorldMap,
-} from "../canvas/plume";
+import { drawPlumeFrame, emptyView, fitView, sampleProbe, type View, type WorldMap } from "../canvas/plume";
 import { fmt, fmtFixed, fmtHeatFlux, fmtPa } from "../format";
 import {
   clampDiskRmm,
@@ -18,10 +8,10 @@ import {
   DISK_R_MM_MAX,
   DISK_R_MM_MIN,
   estimateKnObj,
+  faceMatchesSolve,
   KN_OBJ_TRIGGER,
   parseBarrel,
   parsePlumeProbe,
-  probeMatchesDisk,
   regimeFromKnObj,
 } from "../physics";
 import { ADVANCED_REF_IDS } from "../refs";
@@ -53,6 +43,7 @@ type Props = {
   onDiskX: (x: number | null) => void;
   onDiskR: (r: number) => void;
   onDiskTw: (t: number) => void;
+  solvedFace: { x: number; r: number } | null;
 };
 
 export function PlumeTab({
@@ -71,10 +62,10 @@ export function PlumeTab({
   onDiskX,
   onDiskR,
   onDiskTw,
+  solvedFace,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const parts = useRef<Particle[]>([]);
   const viewRef = useRef<View>(emptyView(dc, dt, de));
   const mapRef = useRef<WorldMap | null>(null);
   const fieldRef = useRef<FieldId>("n_ratio");
@@ -106,23 +97,19 @@ export function PlumeTab({
 
   useEffect(() => {
     viewRef.current = solve ? fitView(solve.plume, dc, dt, de) : emptyView(dc, dt, de);
-    parts.current = solve ? seedParticles(solve.plume, viewRef.current) : [];
   }, [solve, dc, dt, de]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
-    let raf = 0;
-    let last = performance.now();
 
-    const paint = (dtms: number) => {
+    const paint = () => {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       if (wrap.clientWidth < 2 || wrap.clientHeight < 2) return;
       const dpr = canvas.width / Math.max(1, wrap.clientWidth);
       const s = solveRef.current;
-      if (s && visible) stepParticles(s.plume, parts.current, Math.min(0.05, dtms / 1000), viewRef.current);
       const disk = diskRef.current;
       const bow = advancedRef.current && s ? parseBarrel(s.plume.bow_xy) : [];
       const frame = drawPlumeFrame({
@@ -136,7 +123,6 @@ export function PlumeTab({
         dc,
         dt,
         de,
-        particles: parts.current,
         probe: null,
         disk,
         bow,
@@ -157,19 +143,11 @@ export function PlumeTab({
     resize();
     const ro = new ResizeObserver(() => {
       resize();
-      paint(0);
+      paint();
     });
     ro.observe(wrap);
-
-    const loop = (t: number) => {
-      paint(t - last);
-      last = t;
-      raf = requestAnimationFrame(loop);
-    };
-    if (visible) raf = requestAnimationFrame(loop);
-    else paint(0);
+    paint();
     return () => {
-      cancelAnimationFrame(raf);
       ro.disconnect();
     };
   }, [visible, solve, dc, dt, de, field, advanced, showDisk, diskX, diskR]);
@@ -215,17 +193,17 @@ export function PlumeTab({
   const apiProbe = parsePlumeProbe(solve?.plume.probe);
   const diskLive = diskX != null;
   const sample = solve && diskX != null ? sampleProbe(solve, diskX, 0) : null;
-  const matched = diskLive && probeMatchesDisk(apiProbe, diskX, diskR);
-  const knObjApi = matched && apiProbe?.Kn_obj != null ? apiProbe.Kn_obj : null;
+  const faceReady = faceMatchesSolve(solvedFace, diskX, diskR);
+  const knObjApi = faceReady && apiProbe?.Kn_obj != null ? apiProbe.Kn_obj : null;
   const knObjEst =
     knObjApi == null && sample && diskLive
       ? estimateKnObj(sample.kn, solve?.plume.H ?? 0, diskR / 1000)
       : null;
   const knObj = knObjApi ?? knObjEst;
-  const regimeApi = matched && apiProbe?.regime ? apiProbe.regime : null;
+  const regimeApi = faceReady && apiProbe?.regime ? apiProbe.regime : null;
   const regime = regimeApi ?? (knObj != null ? regimeFromKnObj(knObj) : null);
-  const pVal = matched ? apiProbe?.p_Pa : null;
-  const qVal = matched ? apiProbe?.q_W_m2 : null;
+  const pVal = faceReady ? (apiProbe?.p_Pa ?? null) : null;
+  const qVal = faceReady ? (apiProbe?.q_W_m2 ?? null) : null;
 
   return (
     <>
@@ -244,7 +222,7 @@ export function PlumeTab({
           i
         </button>
       </div>
-      {showDisk && (
+      {advanced && showDisk && (
         <div className="disk-row">
           <label className="disk-field">
             x
@@ -268,7 +246,7 @@ export function PlumeTab({
             <span>mm</span>
           </label>
           <label className="disk-field">
-            R
+            disk R
             <input
               type="number"
               inputMode="decimal"
@@ -283,77 +261,71 @@ export function PlumeTab({
             />
             <span>mm</span>
           </label>
-          {advanced && (
-            <label className="disk-field">
-              Tw
-              <input
-                type="number"
-                inputMode="decimal"
-                min={200}
-                max={2000}
-                step={10}
-                value={diskTw}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (Number.isFinite(n)) onDiskTw(clampProbeTw(n));
-                }}
-              />
-              <span>K</span>
-            </label>
-          )}
+          <label className="disk-field">
+            Tw
+            <input
+              type="number"
+              inputMode="decimal"
+              min={200}
+              max={2000}
+              step={10}
+              value={diskTw}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) onDiskTw(clampProbeTw(n));
+              }}
+            />
+            <span>K</span>
+          </label>
         </div>
       )}
       {running && (
         <div className="plume-status">{waking ? "waking chemistry server" : "Solving…"}</div>
       )}
-      <div className="plume-wrap" ref={wrapRef}>
-        <canvas
-          ref={canvasRef}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-        />
+      <div className="plume-slot">
+        <div className="plume-wrap" ref={wrapRef}>
+          <canvas
+            ref={canvasRef}
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerCancel={onUp}
+          />
+        </div>
       </div>
       <div className="probe-panel">
         {showDisk && diskLive ? (
           <>
-            {sample ? (
-              <div className="probe-grid">
-                <Cell l="x" v={`${fmt(diskX * 1000, 1)} mm`} />
-                <Cell l="T" v={`${fmt(sample.T, 0)} K`} />
-                <Cell l="n/n0" v={fmtFixed(sample.n_ratio, 3)} />
-                <Cell l="U" v={`${fmt(sample.U, 0)} m/s`} />
-                <Cell l="Mach" v={fmtFixed(sample.mach, 2)} />
-                <Cell l="Kn" v={sample.kn.toPrecision(3)} />
-              </div>
-            ) : (
-              <div className="probe-hint">Incident n, T, U after Run</div>
-            )}
-            <div className="disk-readout">
-              <div className="disk-lab">Probe disk</div>
-              <div className="probe-grid disk-grid">
-                <Cell l="p" v={pVal == null ? "—" : fmtPa(pVal)} />
-                <Cell l="q" v={qVal == null ? "—" : fmtHeatFlux(qVal)} />
-                <Cell l="Kn_obj" v={knObj == null ? "—" : knObj.toPrecision(2)} />
-                <Cell l="regime" v={regime ?? "—"} />
-              </div>
+            <div className="probe-grid">
+              <Cell l="x" v={`${fmt(diskX * 1000, 1)} mm`} />
+              <Cell l="T" v={sample ? `${fmt(sample.T, 0)} K` : "—"} />
+              <Cell l="n/n0" v={sample ? fmtFixed(sample.n_ratio, 3) : "—"} />
+              <Cell l="U" v={sample ? `${fmt(sample.U, 0)} m/s` : "—"} />
+              <Cell l="Mach" v={sample ? fmtFixed(sample.mach, 2) : "—"} />
+              <Cell l="Kn" v={sample ? sample.kn.toPrecision(3) : "—"} />
+              <Cell l="p" v={pVal == null ? "—" : fmtPa(pVal)} />
+              <Cell l="q" v={qVal == null ? "—" : fmtHeatFlux(qVal)} />
+              <Cell l="Kn_obj" v={knObj == null ? "—" : knObj.toPrecision(2)} />
+              <Cell l="regime" v={regime ?? "—"} />
             </div>
+            {!faceReady && <div className="probe-hint">Run to fill face p, q</div>}
           </>
         ) : showDisk ? (
-          <div className="probe-hint">Tap the jet to place a probe disk on the centerline</div>
+          <div className="probe-hint">Tap the jet to place a station on the centerline</div>
         ) : null}
         {legend && (
           <div className="legend-inline">
             <p>
               T0 is the frozen nozzle-exit translational temperature (CEA station 4), not the chamber. U0 is the frozen
-              exit bulk velocity. Thesis is the Khasawneh–Cai collisionless jet plus a diffuse plate. Dots spawn at the
-              exit lip; color is the selected field, size and brightness follow n/n0. E is directed ½ m U² in eV.
+              exit bulk velocity. Thesis is the Khasawneh–Cai collisionless jet plus a diffuse plate. Color is a bilinear
+              sample of the selected field on the nx×ny grid; faint n/n0 is masked so the far field stays dark. Thin
+              isolines are marching squares of that same grid (not a second solve). E is directed ½ m U² in eV.
             </p>
             <p>
-              Probe disk: tap or set x on the centerline. Kn_obj = λ / (2R); kinetic if Kn_obj ≥ {KN_OBJ_TRIGGER}{" "}
-              (Khasawneh diffuse plate), continuum otherwise (Billig / Newtonian + stagnation heat). p and q fill when
-              the solve returns plume.probe.
+              Station: tap the jet on the centerline. Incident T, n, U, M, Kn update as you drag. Face p and q fill
+              after Run at that x, R — not on every drag. Thesis uses a fixed 20 mm plate. Advanced Object Disk adds x,
+              disk R (5–50 mm), and Tw. Kn_obj = λ / (2R); kinetic if Kn_obj ≥ {KN_OBJ_TRIGGER} (Khasawneh diffuse
+              plate), continuum otherwise (Billig / Newtonian + stagnation heat).
             </p>
             {advanced && (
               <>

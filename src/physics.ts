@@ -141,6 +141,18 @@ export function probeMatchesDisk(
   return true;
 }
 
+/** True when the last solve posted this station, so face p/q may be shown. */
+export function faceMatchesSolve(
+  solved: { x: number; r: number } | null,
+  x_m: number | null,
+  r_mm: number,
+): boolean {
+  if (solved == null || x_m == null || !Number.isFinite(x_m)) return false;
+  if (Math.abs(solved.x - x_m) > 1e-4) return false;
+  if (Math.abs(solved.r - r_mm) > 0.05) return false;
+  return true;
+}
+
 export function parseBarrel(raw: unknown): Xy[] {
   if (raw == null) return [];
   if (Array.isArray(raw)) {

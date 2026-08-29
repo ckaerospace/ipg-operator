@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FACILITY_META, GASES, KNOWN_POINTS, type AxisFamily } from "../facility";
 import { fmtFixed, fmtMdot, fmtPinj } from "../format";
 import type { AppLayer } from "../layer";
+import { CUSTOM_SPECIES, mixtureSum, type CustomMix } from "../mixture";
 import { P_TANK_MAX, P_TANK_MIN } from "../physics";
 import { copyText } from "../shareUrl";
 import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "../types";
@@ -10,6 +11,7 @@ import { LayerBar } from "./LayerBar";
 type Props = {
   facility: FacilityId;
   gas: GasId;
+  customMix: CustomMix;
   custom: { dc: number; dt: number; de: number };
   mode: SolveMode;
   plumeMode: PlumeMode;
@@ -27,6 +29,7 @@ type Props = {
   layer: AppLayer;
   onFacility: (id: FacilityId) => void;
   onGas: (id: GasId) => void;
+  onCustomMix: (mix: CustomMix) => void;
   onCustom: (patch: Partial<{ dc: number; dt: number; de: number }>) => void;
   onMode: (m: SolveMode) => void;
   onPlumeMode: (m: PlumeMode) => void;
@@ -125,7 +128,11 @@ export function SetupTab(p: Props) {
             {g.label}
           </button>
         ))}
+        <button className={`chip${p.gas === "custom" ? " on" : ""}`} onClick={() => p.onGas("custom")}>
+          Custom
+        </button>
       </div>
+      {p.gas === "custom" && <MixEditor mix={p.customMix} onChange={p.onCustomMix} />}
 
       <div className="h-label">Generator setup</div>
       <div className="chips" style={{ marginBottom: 10 }}>
@@ -255,7 +262,7 @@ export function SetupTab(p: Props) {
           </div>
           {p.objectKind === "disk" ? (
             <div className="field-hint" style={{ marginTop: 8 }}>
-              Tap the jet or set x, R on Plume. Default radius 20 mm.
+              Tap the jet or set x and disk R on Plume. Default radius 20 mm.
             </div>
           ) : (
             <div className="field-hint" style={{ marginTop: 8 }}>
@@ -279,6 +286,52 @@ export function SetupTab(p: Props) {
       <div className="share-row">
         <CopyLink href={p.shareHref} mentionDisk={!advanced || p.objectKind === "disk"} />
       </div>
+    </div>
+  );
+}
+
+function MixEditor({ mix, onChange }: { mix: CustomMix; onChange: (mix: CustomMix) => void }) {
+  const [draft, setDraft] = useState<Partial<Record<(typeof CUSTOM_SPECIES)[number], string>>>({});
+  const sum = mixtureSum(mix);
+  return (
+    <div className="mix-editor">
+      <div className="mix-grid">
+        {CUSTOM_SPECIES.map((s) => (
+          <label className="field" key={s}>
+            {s}
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={1}
+              step={0.01}
+              value={draft[s] ?? String(mix[s])}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setDraft((d) => ({ ...d, [s]: raw }));
+                if (raw === "") {
+                  onChange({ ...mix, [s]: 0 });
+                  return;
+                }
+                const n = Number(raw);
+                if (!Number.isFinite(n)) return;
+                onChange({ ...mix, [s]: Math.min(1, Math.max(0, n)) });
+              }}
+              onBlur={() => {
+                setDraft((d) => {
+                  const next = { ...d };
+                  delete next[s];
+                  return next;
+                });
+              }}
+            />
+          </label>
+        ))}
+      </div>
+      <div className={`mix-sum${sum <= 0 ? " bad" : ""}`}>
+        {sum <= 0 ? "Enter at least one mole fraction." : `Σ ${fmtFixed(sum, 3)} · mole fraction (0–1)`}
+      </div>
+      <p className="field-hint">Positive fractions normalize to 1 on Run. Zeros are omitted.</p>
     </div>
   );
 }

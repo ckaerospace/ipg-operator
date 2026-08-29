@@ -14,6 +14,16 @@ import {
   mdotMgLimits,
   pinjLimits,
 } from "./facility";
+import {
+  emptyCustomMix,
+  encodeMixParam,
+  isNamedGas,
+  mixLabel,
+  mixtureSum,
+  resolveMixture,
+  seedCustomMix,
+  type CustomMix,
+} from "./mixture";
 import { fmt, fmtFixed, fmtMdot } from "./format";
 import { operatorLayer, readLayer, writeLayer, type AppLayer } from "./layer";
 import {
@@ -41,6 +51,7 @@ import type {
 type Boot = {
   facility: FacilityId;
   gas: GasId;
+  customMix: CustomMix;
   custom: { dc: number; dt: number; de: number };
   mode: SolveMode;
   plumeMode: PlumeMode;
@@ -70,6 +81,10 @@ function readBoot(): Boot {
   return {
     facility,
     gas: share.gas ?? d.gas,
+    customMix:
+      share.gas === "custom"
+        ? (share.mix ?? emptyCustomMix())
+        : seedCustomMix(mixtureFor(share.gas && isNamedGas(share.gas) ? share.gas : d.gas)),
     custom: { dc: meta.dc, dt: meta.dt, de: meta.de },
     mode: share.mode ?? "generator",
     plumeMode: share.plume ?? "auto",
@@ -93,6 +108,7 @@ export default function App() {
   const [tab, setTab] = useState<TabId>("setup");
   const [facility, setFacility] = useState<FacilityId>(boot.facility);
   const [gas, setGas] = useState<GasId>(boot.gas);
+  const [customMix, setCustomMix] = useState<CustomMix>(boot.customMix);
   const [custom, setCustom] = useState(boot.custom);
   const [mode, setMode] = useState<SolveMode>(boot.mode);
   const [plumeMode, setPlumeMode] = useState<PlumeMode>(boot.plumeMode);
@@ -104,9 +120,12 @@ export default function App() {
   const [diskX, setDiskX] = useState<number | null>(boot.diskX);
   const [diskR, setDiskR] = useState(boot.diskR);
   const [diskTw, setDiskTw] = useState(boot.diskTw);
+  const [solvedFace, setSolvedFace] = useState<{ x: number; r: number } | null>(null);
   const [objectKind, setObjectKind] = useState<JetObject>(boot.object);
   const advanced = layer === "advanced";
   const showDisk = !advanced || objectKind === "disk";
+  const diskEditors = advanced && objectKind === "disk";
+  const effectiveDiskR = diskEditors ? diskR : DISK_R_MM_DEFAULT;
   const [running, setRunning] = useState(false);
   const [waking, setWaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +145,7 @@ export default function App() {
   const applyFacility = (id: FacilityId) => {
     setFacility(id);
     const d = defaultPoint(id);
-    setGas(id === "Custom" ? gas : d.gas);
+    if (gas !== "custom" && id !== "Custom") setGas(d.gas);
     setPinj(d.pinj);
     setMdotMg(d.mdot_mg_s);
     setHinj(d.hinj);
@@ -147,12 +166,27 @@ export default function App() {
     if (k.mdot_mg_s != null) setMdotMg(k.mdot_mg_s);
   };
 
+  const mixOk = gas !== "custom" || mixtureSum(customMix) > 0;
+  const activeMixture = resolveMixture(gas, customMix);
+
+  const selectGas = (id: GasId) => {
+    if (id === "custom" && isNamedGas(gas)) setCustomMix(seedCustomMix(mixtureFor(gas)));
+    setGas(id);
+  };
+
   const runSolve = useCallback(
     async (override?: { mode: SolveMode; pinj: number; hinj?: number; mdot?: number; goPlume?: boolean }) => {
+      const mix = resolveMixture(gas, customMix);
+      if (!mix) {
+        setError("Enter at least one mole fraction.");
+        return;
+      }
       const m = override?.mode ?? mode;
       const p = override?.pinj ?? pinj;
       const h = override?.hinj ?? hinj;
       const md = override?.mdot ?? mdotMg;
+      const sentX = showDisk ? diskX : null;
+      const sentR = effectiveDiskR;
       setRunning(true);
       setWaking(false);
       setError(null);
@@ -162,7 +196,7 @@ export default function App() {
             layer,
             plumeMode,
             mode: m,
-            mixture: mixtureFor(gas),
+            mixture: mix,
             d_c_mm: geom.d_c_mm,
             d_t_mm: geom.d_t_mm,
             d_e_mm: geom.d_e_mm,
@@ -171,13 +205,14 @@ export default function App() {
             hinj_MJ_kg: h,
             mdot_mg_s: md,
             p_tank_Pa: pTank,
-            probe_x_m: showDisk ? diskX : null,
-            probe_r_mm: diskR,
+            probe_x_m: sentX,
+            probe_r_mm: sentR,
             probe_Tw_K: diskTw,
           }),
           () => setWaking(true),
         );
         setSolve(res);
+        setSolvedFace(sentX != null && Number.isFinite(sentX) ? { x: sentX, r: sentR } : null);
         setPinj(res.cea.pinj_Pa);
         setHinj(res.cea.hinj_MJ_kg);
         if (res.cea.mdot_mg_s) setMdotMg(res.cea.mdot_mg_s);
@@ -193,19 +228,27 @@ export default function App() {
         setWaking(false);
       }
     },
-    [advanced, layer, mode, pinj, hinj, mdotMg, pTank, plumeMode, gas, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, showDisk, diskX, diskR, diskTw],
+    [advanced, layer, mode, pinj, hinj, mdotMg, pTank, plumeMode, gas, customMix, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, showDisk, diskX, effectiveDiskR, diskTw],
   );
 
   useEffect(() => {
     if (!boot.autoRun || shareRunStarted) return;
+    if (!resolveMixture(boot.gas, boot.customMix)) return;
     shareRunStarted = true;
     void runSolve();
-  }, [boot.autoRun, runSolve]);
+  }, [boot.autoRun, boot.gas, boot.customMix, runSolve]);
 
   const openMap = (next: TabId) => {
     setTab(next);
     if (next !== "map") return;
-    const key = `${facility}|${gas}|${geom.d_c_mm}|${geom.d_t_mm}|${geom.d_e_mm}|${Math.round(pinj)}`;
+    const mix = resolveMixture(gas, customMix);
+    const mixKey = gas === "custom" ? encodeMixParam(customMix) : gas;
+    const key = `${facility}|${mixKey}|${geom.d_c_mm}|${geom.d_t_mm}|${geom.d_e_mm}|${Math.round(pinj)}`;
+    if (!mix) {
+      setMapStatus("error");
+      setMapErr("Enter at least one mole fraction.");
+      return;
+    }
     if (mapKey === key && ch) {
       setMapStatus("ready");
       return;
@@ -216,7 +259,7 @@ export default function App() {
     postCharacteristics(
       {
         pinj_ref_Pa: pinj,
-        mixture: mixtureFor(gas),
+        mixture: mix,
         basis: "mole",
         d_c_mm: geom.d_c_mm,
         d_t_mm: geom.d_t_mm,
@@ -244,14 +287,14 @@ export default function App() {
       .finally(() => setMapWake(false));
   };
 
-  const heading = `PWK3 · ${facility}`;
+  const heading = `Plasma wind tunnel · ${facility}`;
   useEffect(() => {
     document.title = heading;
   }, [heading]);
 
   const strip = useMemo(
-    () => (solve ? stripItems(solve, family, pTank, advanced) : null),
-    [solve, family, pTank, advanced],
+    () => (solve ? stripItems(solve, family, pTank, advanced, gas === "custom" ? activeMixture : null) : null),
+    [solve, family, pTank, advanced, gas, activeMixture],
   );
 
   const shareHref = useMemo(
@@ -260,6 +303,7 @@ export default function App() {
         layer: advanced ? "advanced" : "thesis",
         facility,
         gas,
+        customMix: gas === "custom" ? customMix : undefined,
         mode,
         pinj,
         mdot_mg_s: mdotMg,
@@ -268,9 +312,9 @@ export default function App() {
         plumeMode,
         object: showDisk ? "disk" : "none",
         diskX_m: showDisk ? diskX : null,
-        diskR_mm: diskR,
+        diskR_mm: effectiveDiskR,
       }),
-    [advanced, facility, gas, mode, pinj, mdotMg, hinj, pTank, plumeMode, showDisk, diskX, diskR],
+    [advanced, facility, gas, customMix, mode, pinj, mdotMg, hinj, pTank, plumeMode, showDisk, diskX, effectiveDiskR],
   );
 
   return (
@@ -286,6 +330,11 @@ export default function App() {
           ))}
         </div>
       )}
+      {strip && gas === "custom" && (
+        <div className="strip-note">
+          Custom gas is a mole mix of O2, N2, CO2, He, and Ar sent to CEA — not a new solver.
+        </div>
+      )}
       {(waking || (mapWake && tab === "map")) && <div className="wake">waking chemistry server</div>}
       {error && tab !== "map" && <div className="err">{error}</div>}
 
@@ -294,6 +343,7 @@ export default function App() {
           <SetupTab
             facility={facility}
             gas={gas}
+            customMix={customMix}
             custom={custom}
             mode={mode}
             plumeMode={plumeMode}
@@ -310,7 +360,8 @@ export default function App() {
             regime={advanced && solve ? jetMatch(solve, pTank).regime : null}
             layer={layer}
             onFacility={applyFacility}
-            onGas={setGas}
+            onGas={selectGas}
+            onCustomMix={setCustomMix}
             onCustom={(patch) => {
               const next = { ...custom, ...patch };
               setCustom(next);
@@ -349,11 +400,12 @@ export default function App() {
             advanced={advanced}
             showDisk={showDisk}
             diskX={showDisk ? diskX : null}
-            diskR={diskR}
+            diskR={effectiveDiskR}
             diskTw={diskTw}
             onDiskX={setDiskX}
             onDiskR={(r) => setDiskR(clampDiskRmm(r))}
             onDiskTw={(t) => setDiskTw(clampProbeTw(t))}
+            solvedFace={solvedFace}
           />
         </section>
         <section className={`pane${tab === "map" ? " on" : ""}`} aria-hidden={tab !== "map"}>
@@ -380,7 +432,7 @@ export default function App() {
       </div>
 
       <div className="run">
-        <button disabled={running} onClick={() => void runSolve()}>
+        <button disabled={running || !mixOk} onClick={() => void runSolve()}>
           {running ? "Solving…" : "Run"}
         </button>
       </div>
@@ -399,7 +451,13 @@ export default function App() {
   );
 }
 
-function stripItems(solve: SolveResponse, family: ReturnType<typeof axisFamily>, pTank: number, advanced: boolean) {
+function stripItems(
+  solve: SolveResponse,
+  family: ReturnType<typeof axisFamily>,
+  pTank: number,
+  advanced: boolean,
+  customSent: ReturnType<typeof resolveMixture>,
+) {
   const ex = solve.cea.exit;
   const mf = ex.mole_fractions ?? {};
   const xO = ex.x_O ?? mf.O ?? 0;
@@ -422,5 +480,8 @@ function stripItems(solve: SolveResponse, family: ReturnType<typeof axisFamily>,
     rows.push({ k: "NPR", v: jetLab }, { k: "Kn_exit", v: `${kn.toPrecision(2)} → ${mode}` });
   }
   rows.push({ k: "ṁ", v: fmtMdot(solve.cea.mdot_mg_s, family) });
+  if (customSent) {
+    rows.push({ k: "mix", v: mixLabel(customSent) });
+  }
   return rows;
 }

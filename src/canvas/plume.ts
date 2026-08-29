@@ -2,15 +2,27 @@ import type { FieldId, ProbeSample, SolveResponse } from "../types";
 import { K_EV } from "../format";
 import { parseBarrel, type Xy } from "../physics";
 import { colorize } from "./color";
+import {
+  fieldIsolines,
+  fmtIsoValue,
+  niceIsoLevels,
+  pickIsoLabels,
+  stitchIso,
+} from "./isolines";
 import { sampleGrid } from "./sample";
 
 export type View = { x0: number; x1: number; y0: number; y1: number };
 
-export type Particle = { x: number; y: number; age: number };
+const N_FAINT = 8e-4;
+const N_SOLID = 0.02;
+const PLOT_BG: [number, number, number] = [12, 26, 40];
 
-const N_PARTICLES = 720;
-const CROSS_SEC = 3.2;
-const N_FAINT = 4e-4;
+/** Fade the color map so vacuum stays the dark plot, not a noisy rectangle. */
+export function fieldMaskAlpha(n: number): number {
+  if (!Number.isFinite(n) || n < N_FAINT) return 0;
+  if (n >= N_SOLID) return 1;
+  return (n - N_FAINT) / (N_SOLID - N_FAINT);
+}
 
 const FIELD_LABEL: Record<FieldId, string> = {
   t_ratio: "T / T0",
@@ -58,11 +70,6 @@ function fieldRange(plume: SolveResponse["plume"], arr: number[]): [number, numb
   return [lo, hi];
 }
 
-/** Lift the navy end of the ramp so dots stay visible on the dark plot. */
-function fieldColor(t: number): [number, number, number] {
-  return colorize(0.3 + 0.7 * Math.min(1, Math.max(0, t)));
-}
-
 /** Frame the barrel when Advanced returns a Mach disk, so xmax_m=2 m does not shrink it off a phone. */
 export function shockFitExtents(plume: SolveResponse["plume"]): { x1: number; y1: number } | null {
   if (plume.shock_applied !== true) return null;
@@ -73,42 +80,65 @@ export function shockFitExtents(plume: SolveResponse["plume"]): { x1: number; y1
   return { x1: xm * 1.2, y1: Math.max(r * 1.2, 1e-4) };
 }
 
+/** Expand the shorter span so the world window is square. y0 stays 0. Caps if the grid is smaller. */
+export function squareWorld(view: View, capX?: number, capY?: number): View {
+  const x0 = view.x0;
+  let x1 = view.x1;
+  const y0 = 0;
+  let y1 = Math.max(view.y1, 1e-6);
+  const side = Math.max(x1 - x0, y1 - y0);
+  if (y1 - y0 < side) {
+    y1 = side;
+    if (typeof capY === "number" && Number.isFinite(capY) && capY > 0) y1 = Math.min(y1, capY);
+  }
+  if (x1 - x0 < side) {
+    x1 = x0 + side;
+    if (typeof capX === "number" && Number.isFinite(capX) && capX > 0) x1 = Math.min(x1, capX);
+  }
+  return { x0, x1, y0, y1 };
+}
+
 export function fitView(plume: SolveResponse["plume"], dc: number, dt: number, de: number): View {
   const H = Math.max(plume.H || de / 2000, de / 2000);
   const L = nozzleLength(dc, dt, de, H);
   const shock = shockFitExtents(plume);
+  let raw: View;
   if (shock) {
     const capX = Number.isFinite(plume.xmax_m) && plume.xmax_m > 0 ? plume.xmax_m : shock.x1;
     const capY = Number.isFinite(plume.ymax_m) && plume.ymax_m > 0 ? plume.ymax_m : shock.y1;
-    return {
+    raw = {
       x0: -L,
       x1: Math.min(Math.max(shock.x1, 4 * H), capX),
       y0: 0,
       y1: Math.min(Math.max(shock.y1, 2 * H), capY),
     };
-  }
-  const nx = plume.nx;
-  const ny = plume.ny;
-  let xMax = 8 * H;
-  let yMax = 3.5 * H;
-  for (let j = 0; j < ny; j++) {
-    if (plume.y[j] < 0) continue;
-    for (let i = 0; i < nx; i++) {
-      if (plume.n_ratio[j * nx + i] >= 0.04) {
-        xMax = Math.max(xMax, plume.x[i]);
-        yMax = Math.max(yMax, plume.y[j]);
+  } else {
+    const nx = plume.nx;
+    const ny = plume.ny;
+    let xMax = 8 * H;
+    let yMax = 3.5 * H;
+    for (let j = 0; j < ny; j++) {
+      if (plume.y[j] < 0) continue;
+      for (let i = 0; i < nx; i++) {
+        if (plume.n_ratio[j * nx + i] >= 0.04) {
+          xMax = Math.max(xMax, plume.x[i]);
+          yMax = Math.max(yMax, plume.y[j]);
+        }
       }
     }
+    xMax = Math.min(xMax * 1.15, plume.xmax_m);
+    yMax = Math.min(Math.max(yMax * 1.25, 4 * H), plume.ymax_m);
+    raw = { x0: -L, x1: xMax, y0: 0, y1: yMax };
   }
-  xMax = Math.min(xMax * 1.15, plume.xmax_m);
-  yMax = Math.min(Math.max(yMax * 1.25, 4 * H), plume.ymax_m);
-  return { x0: -L, x1: xMax, y0: 0, y1: yMax };
+  const capX = Number.isFinite(plume.xmax_m) && plume.xmax_m > 0 ? plume.xmax_m : undefined;
+  const capY = Number.isFinite(plume.ymax_m) && plume.ymax_m > 0 ? plume.ymax_m : undefined;
+  return squareWorld(raw, capX, capY);
 }
 
 export function emptyView(dc: number, dt: number, de: number): View {
   const H = de / 2000;
   const L = nozzleLength(dc, dt, de, H);
-  return { x0: -L, x1: 14 * H, y0: 0, y1: 5.5 * H };
+  return squareWorld({ x0: -L, x1: 14 * H, y0: 0, y1: 5.5 * H });
 }
 
 function nozzleLength(dc: number, dt: number, de: number, H: number): number {
@@ -131,13 +161,13 @@ export function worldMap(w: number, h: number, view: View): WorldMap {
   const padB = 28;
   const pw = Math.max(10, w - padL - padR);
   const ph = Math.max(10, h - padT - padB);
-  const dx = view.x1 - view.x0;
-  const dy = view.y1 - view.y0;
+  const dx = view.x1 - view.x0 || 1;
+  const dy = view.y1 - view.y0 || 1;
   const s = Math.min(pw / dx, ph / dy);
   const usedW = dx * s;
   const usedH = dy * s;
-  const l = padL + (pw - usedW) * 0.15;
-  const t = padT + (ph - usedH) * 0.2;
+  const l = padL + (pw - usedW) / 2;
+  const t = padT + (ph - usedH) / 2;
   return {
     plot: { l, t, w: usedW, h: usedH },
     toX: (x) => l + ((x - view.x0) / dx) * usedW,
@@ -364,7 +394,7 @@ function drawColorbar(
   const h = map.plot.h;
   for (let i = 0; i < h; i++) {
     const t = 1 - i / h;
-    const [r, g, b] = fieldColor(t);
+    const [r, g, b] = colorize(t);
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(x, y + i, w, 1);
   }
@@ -386,54 +416,121 @@ function drawColorbar(
 }
 
 function fmtBar(v: number): string {
-  if (Math.abs(v) >= 1000) return v.toFixed(0);
-  if (Math.abs(v) >= 10) return v.toFixed(1);
-  return v.toFixed(2);
+  return fmtIsoValue(v);
 }
 
-function exitX(plume: SolveResponse["plume"]): number {
-  for (let i = 0; i < plume.x.length; i++) {
-    if (plume.x[i] >= 0) return plume.x[i] + 1e-7;
+let fieldScratch: HTMLCanvasElement | null = null;
+
+function drawFieldMap(
+  ctx: CanvasRenderingContext2D,
+  map: WorldMap,
+  plume: SolveResponse["plume"],
+  field: FieldId,
+  lo: number,
+  hi: number,
+) {
+  const { l, t, w: pw, h: ph } = map.plot;
+  const w = Math.max(1, Math.round(pw));
+  const h = Math.max(1, Math.round(ph));
+  const img = ctx.createImageData(w, h);
+  const data = img.data;
+  const span = hi - lo || 1;
+  const arr = fieldArray(plume, field);
+  const [bgR, bgG, bgB] = PLOT_BG;
+
+  for (let j = 0; j < h; j++) {
+    const py = t + ((j + 0.5) * ph) / h;
+    const y = map.fromY(py);
+    for (let i = 0; i < w; i++) {
+      const px = l + ((i + 0.5) * pw) / w;
+      const x = map.fromX(px);
+      const off = (j * w + i) * 4;
+      data[off] = bgR;
+      data[off + 1] = bgG;
+      data[off + 2] = bgB;
+      data[off + 3] = 255;
+      if (x < 0 || y < 0) continue;
+      const n = sampleGrid(plume.n_ratio, plume.nx, plume.ny, plume.x, plume.y, x, y);
+      const a = fieldMaskAlpha(n);
+      if (a <= 0) continue;
+      const fv = sampleGrid(arr, plume.nx, plume.ny, plume.x, plume.y, x, y);
+      if (!Number.isFinite(fv)) continue;
+      const [r, g, b] = colorize((fv - lo) / span);
+      data[off] = Math.round(bgR + (r - bgR) * a);
+      data[off + 1] = Math.round(bgG + (g - bgG) * a);
+      data[off + 2] = Math.round(bgB + (b - bgB) * a);
+    }
   }
-  return 1e-6;
-}
 
-function spawnExit(p: Particle, plume: SolveResponse["plume"]) {
-  p.x = exitX(plume);
-  const H = Math.max(plume.H, 1e-6);
-  p.y = Math.random() * H * 0.998;
-  p.age = 0;
-}
-
-function physStep(wallDt: number, plume: SolveResponse["plume"], view: View): number {
-  const U0 = Math.max(plume.U0, 1);
-  const L = Math.max(view.x1, plume.H);
-  return Math.min(Math.max(wallDt, 0), 0.05) * (L / (CROSS_SEC * U0));
-}
-
-function advect(p: Particle, plume: SolveResponse["plume"], dt: number, view: View, recycle = true): boolean {
-  const u = sampleGrid(plume.u, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
-  const v = sampleGrid(plume.v, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
-  if (!Number.isFinite(u) || !Number.isFinite(v)) {
-    if (recycle) spawnExit(p, plume);
-    return false;
+  if (typeof document === "undefined") return;
+  if (!fieldScratch) fieldScratch = document.createElement("canvas");
+  if (fieldScratch.width !== w || fieldScratch.height !== h) {
+    fieldScratch.width = w;
+    fieldScratch.height = h;
   }
-  p.x += u * dt;
-  p.y += v * dt;
-  p.age += dt;
-  if (p.y < 0) p.y = -p.y;
-  const n = sampleGrid(plume.n_ratio, plume.nx, plume.ny, plume.x, plume.y, p.x, p.y);
-  const gone =
-    p.x > view.x1 ||
-    p.y > view.y1 ||
-    p.x < -0.05 * plume.H ||
-    !Number.isFinite(n) ||
-    n < N_FAINT;
-  if (gone) {
-    if (recycle) spawnExit(p, plume);
-    return false;
+  const sctx = fieldScratch.getContext("2d");
+  if (!sctx) return;
+  sctx.putImageData(img, 0, 0);
+  ctx.drawImage(fieldScratch, l, t, pw, ph);
+}
+
+function drawIsolines(
+  ctx: CanvasRenderingContext2D,
+  map: WorldMap,
+  plume: SolveResponse["plume"],
+  field: FieldId,
+  lo: number,
+  hi: number,
+  view: View,
+  de: number,
+) {
+  const arr = fieldArray(plume, field);
+  const levels = niceIsoLevels(lo, hi);
+  if (!levels.length) return;
+  const segs = fieldIsolines(plume.x, plume.y, arr, plume.nx, plume.ny, levels, plume.n_ratio);
+  const chains = stitchIso(segs);
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.setLineDash([]);
+  for (const chain of chains) {
+    if (chain.pts.length < 2) continue;
+    ctx.beginPath();
+    chain.pts.forEach((p, i) => {
+      const X = map.toX(p.x);
+      const Y = map.toY(p.y);
+      if (i === 0) ctx.moveTo(X, Y);
+      else ctx.lineTo(X, Y);
+    });
+    ctx.strokeStyle = "rgba(6, 12, 20, 0.38)";
+    ctx.lineWidth = 2.15;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(244, 248, 252, 0.82)";
+    ctx.lineWidth = 1.05;
+    ctx.stroke();
   }
-  return true;
+  const re = de / 2000;
+  const labels = pickIsoLabels(chains, levels, {
+    xMin: Math.max(re * 1.6, (view.x1 - view.x0) * 0.06, 0.004),
+    yMin: Math.max(re * 0.15, (view.y1 - view.y0) * 0.04),
+    xMax: view.x1 - (view.x1 - view.x0) * 0.08,
+    yMax: view.y1 - (view.y1 - view.y0) * 0.08,
+    toPx: (x, y) => ({ x: map.toX(x), y: map.toY(y) }),
+    fmt: fmtIsoValue,
+  });
+  ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const lab of labels) {
+    const X = map.toX(lab.x);
+    const Y = map.toY(lab.y);
+    ctx.lineWidth = 3.2;
+    ctx.strokeStyle = "rgba(8, 16, 24, 0.62)";
+    ctx.strokeText(lab.text, X, Y);
+    ctx.fillStyle = "rgba(244, 248, 252, 0.94)";
+    ctx.fillText(lab.text, X, Y);
+  }
+  ctx.restore();
 }
 
 export function drawPlumeFrame(opts: {
@@ -447,13 +544,12 @@ export function drawPlumeFrame(opts: {
   dc: number;
   dt: number;
   de: number;
-  particles: Particle[];
   probe: { x: number; y: number } | null;
   disk?: { x: number; r: number } | null;
   bow?: Xy[];
   showShocks?: boolean;
 }): { map: WorldMap } {
-  const { ctx, cssW, cssH, dpr, solve, field, view, dc, dt, de, particles, probe, disk, bow, showShocks } = opts;
+  const { ctx, cssW, cssH, dpr, solve, field, view, dc, dt, de, probe, disk, bow, showShocks } = opts;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
   ctx.fillStyle = "#0a1520";
@@ -471,28 +567,9 @@ export function drawPlumeFrame(opts: {
   let hi = 1;
   if (solve) {
     const pl = solve.plume;
-    const arr = fieldArray(pl, field);
-    [lo, hi] = fieldRange(pl, arr);
-    const span = hi - lo || 1;
-    ctx.globalCompositeOperation = "lighter";
-    for (const p of particles) {
-      if (p.y < 0 || p.x < -1e-6) continue;
-      const n = sampleGrid(pl.n_ratio, pl.nx, pl.ny, pl.x, pl.y, p.x, p.y);
-      if (!Number.isFinite(n) || n < N_FAINT) continue;
-      const fv = sampleGrid(arr, pl.nx, pl.ny, pl.x, pl.y, p.x, p.y);
-      const t = Number.isFinite(fv) ? (fv - lo) / span : 0.5;
-      const [r, g, b] = fieldColor(t);
-      const nn = Math.min(1, Math.max(0, n));
-      const alpha = 0.28 + 0.72 * Math.pow(nn, 0.35);
-      const rad = 0.6 + 1.9 * Math.sqrt(nn);
-      const px = map.toX(p.x);
-      const py = map.toY(p.y);
-      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-      ctx.beginPath();
-      ctx.arc(px, py, rad, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalCompositeOperation = "source-over";
+    [lo, hi] = fieldRange(pl, fieldArray(pl, field));
+    drawFieldMap(ctx, map, pl, field, lo, hi);
+    drawIsolines(ctx, map, pl, field, lo, hi, view, de);
     if (showShocks) drawShocks(ctx, map, solve);
   }
 
@@ -532,36 +609,6 @@ export function drawPlumeFrame(opts: {
     ctx.stroke();
   }
   return { map };
-}
-
-export function seedParticles(plume: SolveResponse["plume"], view: View, n = N_PARTICLES): Particle[] {
-  const out: Particle[] = [];
-  const transit = Math.max(view.x1, plume.H) / Math.max(plume.U0, 1);
-  const sub = 36;
-  for (let i = 0; i < n; i++) {
-    const p: Particle = { x: 0, y: 0, age: 0 };
-    spawnExit(p, plume);
-    const frac = (i + Math.random()) / n;
-    const dt = (frac * transit) / sub;
-    for (let k = 0; k < sub; k++) {
-      const ox = p.x;
-      const oy = p.y;
-      const oa = p.age;
-      if (!advect(p, plume, dt, view, false)) {
-        p.x = ox;
-        p.y = oy;
-        p.age = oa;
-        break;
-      }
-    }
-    out.push(p);
-  }
-  return out;
-}
-
-export function stepParticles(plume: SolveResponse["plume"], parts: Particle[], wallDt: number, view: View) {
-  const dt = physStep(wallDt, plume, view);
-  for (const p of parts) advect(p, plume, dt, view);
 }
 
 export function sampleProbe(solve: SolveResponse, x: number, y: number): ProbeSample | null {

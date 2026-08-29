@@ -30,7 +30,7 @@ describe("share URL", () => {
     expect(q).toContain("plume=collisionless");
     expect(q).not.toContain("ptank=");
     expect(q).toContain("probe_x=0.12");
-    expect(q).toContain("probe_r=20");
+    expect(q).not.toContain("probe_r=");
     expect(q).not.toContain("object=");
     expect(q).not.toContain("run=");
   });
@@ -45,7 +45,7 @@ describe("share URL", () => {
     expect(parsed.mdot).toBe(2200);
     expect(parsed.plume).toBe("collisionless");
     expect(parsed.probe_x).toBe(0.12);
-    expect(parsed.probe_r).toBe(20);
+    expect(parsed.probe_r).toBeUndefined();
     expect(parsed.run).toBeUndefined();
   });
 
@@ -63,6 +63,12 @@ describe("share URL", () => {
     expect(parsed.ptank).toBe(40);
     expect(parsed.object).toBe("none");
     expect(q).not.toContain("probe_x=");
+  });
+
+  it("omits probe_r on Thesis even when a plate is placed", () => {
+    const q = encodeShareSearch({ ...fields, layer: "thesis", diskR_mm: 40 });
+    expect(q).toContain("probe_x=0.12");
+    expect(q).not.toContain("probe_r=");
   });
 
   it("Advanced Object Disk persists on/off and x/r", () => {
@@ -112,6 +118,29 @@ describe("share URL", () => {
     expect(hydrateShareObject("advanced", { object: "none", probe_x: 0.12 }).diskX).toBeNull();
     expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).diskX).toBe(0.08);
     expect(hydrateShareObject("advanced", { object: "disk" }).diskX).toBeNull();
+  });
+
+  it("round-trips custom mole mix without named-gas mix=", () => {
+    const q = encodeShareSearch({
+      ...fields,
+      gas: "custom",
+      customMix: { O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 },
+    });
+    expect(q).toContain("gas=custom");
+    expect(q).toContain("mix=O2%3A0.3%2CHe%3A0.7");
+    const parsed = parseShareSearch(`?${q}`);
+    expect(parsed.gas).toBe("custom");
+    expect(parsed.mix).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 });
+    expect(parseShareSearch("?gas=custom&mix=He:0.7,O2:0.3").mix).toEqual({
+      O2: 0.3,
+      N2: 0,
+      CO2: 0,
+      He: 0.7,
+      Ar: 0,
+    });
+    const named = encodeShareSearch(fields);
+    expect(named).toContain("gas=CO2");
+    expect(named).not.toContain("mix=");
   });
 
   it("builds from the live origin", () => {

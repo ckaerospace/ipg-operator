@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePlumeProbe } from "./physics";
+import { faceMatchesSolve, parsePlumeProbe } from "./physics";
 
 describe("parsePlumeProbe", () => {
   it("reads kinetic wall p and q from p_w_Pa / q_w_W_m2", () => {
@@ -50,5 +50,16 @@ describe("parsePlumeProbe", () => {
     const p = parsePlumeProbe({ p_Pa: 5, q_W_m2: 7 });
     expect(p!.p_Pa).toBe(5);
     expect(p!.q_W_m2).toBe(7);
+  });
+});
+
+describe("faceMatchesSolve", () => {
+  it("is true only for the station posted on the last solve", () => {
+    const solved = { x: 0.7158, r: 20 };
+    expect(faceMatchesSolve(solved, 0.7158, 20)).toBe(true);
+    expect(faceMatchesSolve(solved, 0.12, 20)).toBe(false);
+    expect(faceMatchesSolve(solved, 0.7158, 40)).toBe(false);
+    expect(faceMatchesSolve(null, 0.7158, 20)).toBe(false);
+    expect(faceMatchesSolve(solved, null, 20)).toBe(false);
   });
 });
