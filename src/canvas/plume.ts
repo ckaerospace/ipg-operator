@@ -63,8 +63,30 @@ function fieldColor(t: number): [number, number, number] {
   return colorize(0.3 + 0.7 * Math.min(1, Math.max(0, t)));
 }
 
+/** Frame the barrel when Advanced returns a Mach disk, so xmax_m=2 m does not shrink it off a phone. */
+export function shockFitExtents(plume: SolveResponse["plume"]): { x1: number; y1: number } | null {
+  if (plume.shock_applied !== true) return null;
+  const xm = plume.x_mach_disk_m;
+  if (typeof xm !== "number" || !Number.isFinite(xm) || xm <= 0) return null;
+  const barrel = parseBarrel(plume.barrel_xy);
+  const r = barrelRadiusAt(barrel, xm, Math.max(plume.H || 0, 1e-4));
+  return { x1: xm * 1.2, y1: Math.max(r * 1.2, 1e-4) };
+}
+
 export function fitView(plume: SolveResponse["plume"], dc: number, dt: number, de: number): View {
   const H = Math.max(plume.H || de / 2000, de / 2000);
+  const L = nozzleLength(dc, dt, de, H);
+  const shock = shockFitExtents(plume);
+  if (shock) {
+    const capX = Number.isFinite(plume.xmax_m) && plume.xmax_m > 0 ? plume.xmax_m : shock.x1;
+    const capY = Number.isFinite(plume.ymax_m) && plume.ymax_m > 0 ? plume.ymax_m : shock.y1;
+    return {
+      x0: -L,
+      x1: Math.min(Math.max(shock.x1, 4 * H), capX),
+      y0: 0,
+      y1: Math.min(Math.max(shock.y1, 2 * H), capY),
+    };
+  }
   const nx = plume.nx;
   const ny = plume.ny;
   let xMax = 8 * H;
@@ -80,7 +102,6 @@ export function fitView(plume: SolveResponse["plume"], dc: number, dt: number, d
   }
   xMax = Math.min(xMax * 1.15, plume.xmax_m);
   yMax = Math.min(Math.max(yMax * 1.25, 4 * H), plume.ymax_m);
-  const L = nozzleLength(dc, dt, de, H);
   return { x0: -L, x1: xMax, y0: 0, y1: yMax };
 }
 
@@ -246,12 +267,18 @@ function drawDisk(
 
 function drawShocks(ctx: CanvasRenderingContext2D, map: WorldMap, solve: SolveResponse) {
   const pl = solve.plume;
+  if (pl.shock_applied !== true) return;
+  const xm = pl.x_mach_disk_m;
+  if (typeof xm !== "number" || !Number.isFinite(xm)) return;
   const barrel = parseBarrel(pl.barrel_xy);
+  const r = barrelRadiusAt(barrel, xm, Math.max(pl.H, 1e-4));
   ctx.save();
-  ctx.strokeStyle = "rgba(232, 238, 245, 0.72)";
-  ctx.lineWidth = 1.15;
   ctx.setLineDash([]);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   if (barrel.length >= 2) {
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.96)";
+    ctx.lineWidth = 2.35;
     strokeXy(ctx, map, barrel);
     strokeXy(
       ctx,
@@ -259,22 +286,33 @@ function drawShocks(ctx: CanvasRenderingContext2D, map: WorldMap, solve: SolveRe
       barrel.map((p) => ({ x: p.x, y: -p.y })),
     );
   }
-  if (pl.shock_applied === false) {
-    ctx.restore();
-    return;
-  }
-  const xm = pl.x_mach_disk_m;
-  if (typeof xm !== "number" || !Number.isFinite(xm)) {
-    ctx.restore();
-    return;
-  }
-  const r = barrelRadiusAt(barrel, xm, Math.max(pl.H, 1e-4));
-  ctx.strokeStyle = "rgba(245, 215, 110, 0.85)";
-  ctx.lineWidth = 1.35;
+  const X = map.toX(xm);
+  const Y0 = map.toY(-r);
+  const Y1 = map.toY(r);
+  ctx.strokeStyle = "#ffe37a";
+  ctx.lineWidth = 3.15;
+  ctx.shadowColor = "rgba(255, 220, 120, 0.75)";
+  ctx.shadowBlur = 5;
   ctx.beginPath();
-  ctx.moveTo(map.toX(xm), map.toY(-r));
-  ctx.lineTo(map.toX(xm), map.toY(r));
+  ctx.moveTo(X, Y0);
+  ctx.lineTo(X, Y1);
   ctx.stroke();
+  ctx.shadowBlur = 0;
+  const top = Math.min(Y0, Y1);
+  const roomLeft = X - map.plot.l >= 58;
+  const roomRight = map.plot.l + map.plot.w - X >= 58;
+  if (map.plot.w >= 140 && top > map.plot.t + 8 && (roomLeft || roomRight)) {
+    ctx.fillStyle = "rgba(255, 236, 190, 0.95)";
+    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+    ctx.textBaseline = "bottom";
+    if (roomLeft) {
+      ctx.textAlign = "right";
+      ctx.fillText("Mach disk", X - 6, top - 1);
+    } else {
+      ctx.textAlign = "left";
+      ctx.fillText("Mach disk", X + 6, top - 1);
+    }
+  }
   ctx.restore();
 }
 

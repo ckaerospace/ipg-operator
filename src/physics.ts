@@ -113,8 +113,8 @@ export function parsePlumeProbe(raw: unknown): {
   const x_m = num("x_m", "probe_x_m") ?? undefined;
   const r_mm = num("r_mm", "probe_r_mm") ?? undefined;
   const Tw_K = num("Tw_K", "probe_Tw_K") ?? undefined;
-  const p_Pa = num("p_Pa", "p");
-  const q_W_m2 = num("q_W_m2", "q");
+  const p_Pa = num("p_w_Pa", "p_stag_Pa", "p_Pa", "p");
+  const q_W_m2 = num("q_w_W_m2", "q_stag_W_m2", "q_W_m2", "q");
   const Kn_obj = num("Kn_obj", "kn_obj");
   const regime = typeof o.regime === "string" && o.regime.trim() ? o.regime.trim() : null;
   if (
