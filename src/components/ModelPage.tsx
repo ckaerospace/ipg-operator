@@ -41,10 +41,12 @@ export function ModelPage() {
           A point is measured chamber pressure <i>p</i>
           <sub>inj</sub> plus mass flow ṁ, or the same <i>p</i>
           <sub>inj</sub> with assigned specific enthalpy <i>h</i>
-          <sub>inj</sub>. In Advanced only, tank pressure <i>p</i>
+          <sub>inj</sub>. In Advanced only, Physics chooses Auto / Collisionless / Sudden-freeze, tank pressure{" "}
+          <i>p</i>
           <sub>tank</sub> (default 10&nbsp;Pa, typical 0.1–5000&nbsp;Pa) is the background the jet expands into,{" "}
           <i>p</i>
-          <sub>∞</sub>. The operator chrome header stays <span className="mono">PWK3 · {"{generator}"}</span>.
+          <sub>∞</sub>, and Object is None (empty jet) or Disk. The operator chrome header stays{" "}
+          <span className="mono">PWK3 · {"{generator}"}</span>.
         </p>
         <p>
           <i>h</i>
@@ -168,12 +170,14 @@ export function ModelPage() {
 
         <h2>8. Probe disk</h2>
         <p>
-          Tap the jet (or set <span className="mono">x</span>, <span className="mono">R</span>) to place a sample /
-          calorimeter disk on the centerline. Default radius is 20&nbsp;mm (editable 5–50&nbsp;mm). Wall temperature is
-          300&nbsp;K, shown only in Advanced. The disk is a rectangle / ellipse at <i>x</i>, |<i>y</i>|&nbsp;&lt;&nbsp;<i>R</i>.
-          A thin bow is stroked in Advanced when the API returns <span className="mono">bow_xy</span> — not a filled
-          sheet over the canvas. Incident <i>n</i>, <i>T</i>, <i>U</i> come from the existing grid sample. Pressure{" "}
-          <i>p</i> and heat flux <i>q</i> fill when the solve returns <span className="mono">plume.probe</span>.
+          Thesis always allows a centerline plate. Advanced Object is None (default: no body, probe fields omitted) or
+          Disk. When Disk is on, tap the jet (or set <span className="mono">x</span>, <span className="mono">R</span>)
+          to place a sample / calorimeter disk on the centerline. Default radius is 20&nbsp;mm (editable 5–50&nbsp;mm).
+          Wall temperature is 300&nbsp;K, shown only in Advanced. The disk is a rectangle / ellipse at <i>x</i>, |<i>y</i>
+          |&nbsp;&lt;&nbsp;<i>R</i>. A thin bow is stroked in Advanced when the API returns{" "}
+          <span className="mono">bow_xy</span> — not a filled sheet over the canvas. Incident <i>n</i>, <i>T</i>,{" "}
+          <i>U</i> come from the existing grid sample. Pressure <i>p</i> and heat flux <i>q</i> fill when the solve
+          returns <span className="mono">plume.probe</span>.
         </p>
         <p>
           Regime uses object Knudsen number Kn_obj = <i>λ</i> / (2<i>R</i>) with trigger
@@ -196,7 +200,7 @@ export function ModelPage() {
         <p>
           A Copy link control on Setup encodes the current point in the URL (
           <span className="mono">
-            layer, facility, gas, mode, pinj, mdot, hinj, ptank, plume, probe_x, probe_r
+            layer, facility, gas, mode, pinj, mdot, hinj, ptank, plume, object, probe_x, probe_r
           </span>
           ). Opening that URL applies the fields and does not auto-Run unless <span className="mono">run=1</span>.
         </p>

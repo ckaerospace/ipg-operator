@@ -38,20 +38,20 @@ Copy `.env` or export `VITE_API` before `npm run dev`. Endpoints used:
 Three layers (persisted in `localStorage` as `ipg-layer`):
 
 - **Thesis** (default) — always `plume_mode: collisionless`. No tank pressure, NPR, or shock overlay.
-- **Advanced** — Auto / Collisionless / Sudden-freeze, `p_tank_Pa`, NPR / regime, barrel + Mach disk when the API sets `shock_applied`.
+- **Advanced** — Physics (Auto / Collisionless / Sudden-freeze), `p_tank_Pa`, NPR / regime, barrel + Mach disk when the API sets `shock_applied`. Object None (default) or Disk.
 - **Manual** — scientific note at `/model` (not a solver). Linked from the layer control and Plume (i).
 
 Header chrome is `PWK3 · {generator}` (for example `PWK3 · IPG6-S`).
 
-A **probe disk** sits on the centerline (tap the jet or set x, R). Default radius 20 mm (5–50 mm). Thesis posts a collisionless plate; Advanced draws a bow if the API returns `bow_xy`. Request fields: `probe_x_m`, `probe_r_mm`, `probe_Tw_K`. Response `plume.probe` fills p, q, Kn_obj, kinetic|continuum. If the live API rejects those fields (422), the disk is still drawn and incident n, T, U come from the grid sample.
+A **probe disk** sits on the centerline in Thesis (tap the jet or set x, R). In Advanced, Object None hides the body and omits `probe_*` on the request; Object Disk restores the same placeable plate. Default radius 20 mm (5–50 mm). Thesis posts a collisionless plate; Advanced draws a bow if the API returns `bow_xy`. Request fields: `probe_x_m`, `probe_r_mm`, `probe_Tw_K`. Response `plume.probe` fills p, q, Kn_obj, kinetic|continuum. If the live API rejects those fields (422), the disk is still drawn and incident n, T, U come from the grid sample.
 
 **Copy link** on Setup encodes the current point:
 
 ```
-https://ipg-operator.onrender.com/?layer=thesis|advanced&facility=IPG4&gas=CO2&mode=generator|enthalpy&pinj=&mdot=&hinj=&ptank=&plume=auto|collisionless|sudden_freeze&probe_x=&probe_r=
+https://ipg-operator.onrender.com/?layer=thesis|advanced&facility=IPG4&gas=CO2&mode=generator|enthalpy&pinj=&mdot=&hinj=&ptank=&plume=auto|collisionless|sudden_freeze&object=none|disk&probe_x=&probe_r=
 ```
 
-The `facility` query key is the selected generator (IPG3 / IPG4 / IPG6-S). Opening that URL applies the fields and does not auto-Run unless `run=1`. `mdot` is mg/s (same as the API). `probe_x` is meters; `probe_r` is mm.
+The `facility` query key is the selected generator (IPG3 / IPG4 / IPG6-S). Opening that URL applies the fields and does not auto-Run unless `run=1`. An Advanced share without `object=disk` does not place a disk. `mdot` is mg/s (same as the API). `probe_x` is meters; `probe_r` is mm.
 
 If the API is asleep, the chrome stays up and the content pane shows **waking chemistry server**.
 

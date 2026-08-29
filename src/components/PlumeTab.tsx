@@ -46,6 +46,7 @@ type Props = {
   dt: number;
   de: number;
   advanced: boolean;
+  showDisk: boolean;
   diskX: number | null;
   diskR: number;
   diskTw: number;
@@ -63,6 +64,7 @@ export function PlumeTab({
   dt,
   de,
   advanced,
+  showDisk,
   diskX,
   diskR,
   diskTw,
@@ -77,8 +79,9 @@ export function PlumeTab({
   const mapRef = useRef<WorldMap | null>(null);
   const fieldRef = useRef<FieldId>("n_ratio");
   const diskRef = useRef<{ x: number; r: number } | null>(
-    diskX != null ? { x: diskX, r: diskR / 1000 } : null,
+    showDisk && diskX != null ? { x: diskX, r: diskR / 1000 } : null,
   );
+  const showDiskRef = useRef(showDisk);
   const drag = useRef(false);
   const [field, setField] = useState<FieldId>("n_ratio");
   const [legend, setLegend] = useState(false);
@@ -89,8 +92,11 @@ export function PlumeTab({
     fieldRef.current = field;
   }, [field]);
   useEffect(() => {
-    diskRef.current = diskX != null ? { x: diskX, r: diskR / 1000 } : null;
-  }, [diskX, diskR]);
+    diskRef.current = showDisk && diskX != null ? { x: diskX, r: diskR / 1000 } : null;
+  }, [showDisk, diskX, diskR]);
+  useEffect(() => {
+    showDiskRef.current = showDisk;
+  }, [showDisk]);
   useEffect(() => {
     solveRef.current = solve;
   }, [solve]);
@@ -166,7 +172,7 @@ export function PlumeTab({
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [visible, solve, dc, dt, de, field, advanced, diskX, diskR]);
+  }, [visible, solve, dc, dt, de, field, advanced, showDisk, diskX, diskR]);
 
   const toWorld = (e: PE<HTMLCanvasElement>) => {
     const map = mapRef.current;
@@ -183,6 +189,7 @@ export function PlumeTab({
   };
 
   const onDown = (e: PE<HTMLCanvasElement>) => {
+    if (!showDiskRef.current) return;
     const w = toWorld(e);
     if (!w) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -191,7 +198,7 @@ export function PlumeTab({
     setLegend(false);
   };
   const onMove = (e: PE<HTMLCanvasElement>) => {
-    if (!drag.current) return;
+    if (!showDiskRef.current || !drag.current) return;
     const w = toWorld(e);
     if (!w) return;
     placeX(w.x);
@@ -237,63 +244,65 @@ export function PlumeTab({
           i
         </button>
       </div>
-      <div className="disk-row">
-        <label className="disk-field">
-          x
-          <input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step={1}
-            value={diskX == null ? "" : +(diskX * 1000).toFixed(1)}
-            placeholder="mm"
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === "") {
-                onDiskX(null);
-                return;
-              }
-              const n = Number(raw);
-              if (Number.isFinite(n)) placeX(n / 1000);
-            }}
-          />
-          <span>mm</span>
-        </label>
-        <label className="disk-field">
-          R
-          <input
-            type="number"
-            inputMode="decimal"
-            min={DISK_R_MM_MIN}
-            max={DISK_R_MM_MAX}
-            step={1}
-            value={diskR}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (Number.isFinite(n)) onDiskR(clampDiskRmm(n));
-            }}
-          />
-          <span>mm</span>
-        </label>
-        {advanced && (
+      {showDisk && (
+        <div className="disk-row">
           <label className="disk-field">
-            Tw
+            x
             <input
               type="number"
               inputMode="decimal"
-              min={200}
-              max={2000}
-              step={10}
-              value={diskTw}
+              min={0}
+              step={1}
+              value={diskX == null ? "" : +(diskX * 1000).toFixed(1)}
+              placeholder="mm"
               onChange={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isFinite(n)) onDiskTw(clampProbeTw(n));
+                const raw = e.target.value;
+                if (raw === "") {
+                  onDiskX(null);
+                  return;
+                }
+                const n = Number(raw);
+                if (Number.isFinite(n)) placeX(n / 1000);
               }}
             />
-            <span>K</span>
+            <span>mm</span>
           </label>
-        )}
-      </div>
+          <label className="disk-field">
+            R
+            <input
+              type="number"
+              inputMode="decimal"
+              min={DISK_R_MM_MIN}
+              max={DISK_R_MM_MAX}
+              step={1}
+              value={diskR}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) onDiskR(clampDiskRmm(n));
+              }}
+            />
+            <span>mm</span>
+          </label>
+          {advanced && (
+            <label className="disk-field">
+              Tw
+              <input
+                type="number"
+                inputMode="decimal"
+                min={200}
+                max={2000}
+                step={10}
+                value={diskTw}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isFinite(n)) onDiskTw(clampProbeTw(n));
+                }}
+              />
+              <span>K</span>
+            </label>
+          )}
+        </div>
+      )}
       {running && (
         <div className="plume-status">{waking ? "waking chemistry server" : "Solving…"}</div>
       )}
@@ -307,7 +316,7 @@ export function PlumeTab({
         />
       </div>
       <div className="probe-panel">
-        {diskLive ? (
+        {showDisk && diskLive ? (
           <>
             {sample ? (
               <div className="probe-grid">
@@ -331,9 +340,9 @@ export function PlumeTab({
               </div>
             </div>
           </>
-        ) : (
+        ) : showDisk ? (
           <div className="probe-hint">Tap the jet to place a probe disk on the centerline</div>
-        )}
+        ) : null}
         {legend && (
           <div className="legend-inline">
             <p>

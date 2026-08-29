@@ -4,7 +4,7 @@ import { fmtFixed, fmtMdot, fmtPinj } from "../format";
 import type { AppLayer } from "../layer";
 import { P_TANK_MAX, P_TANK_MIN } from "../physics";
 import { copyText } from "../shareUrl";
-import type { FacilityId, GasId, PlumeMode, SolveMode } from "../types";
+import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "../types";
 import { LayerBar } from "./LayerBar";
 
 type Props = {
@@ -36,6 +36,8 @@ type Props = {
   onPTank: (v: number) => void;
   onKnown: (id: string) => void;
   onLayer: (layer: "thesis" | "advanced") => void;
+  objectKind: JetObject;
+  onObject: (kind: JetObject) => void;
   shareHref: string;
 };
 
@@ -191,9 +193,9 @@ export function SetupTab(p: Props) {
         ))}
       </div>
 
-      <div className="h-label">Plume</div>
       {advanced ? (
         <>
+          <div className="h-label">Physics</div>
           <div className="chips">
             {(
               [
@@ -236,25 +238,52 @@ export function SetupTab(p: Props) {
               ) : null}
             </div>
           )}
+          <div className="h-label">Object</div>
+          <div className="chips">
+            <button
+              className={`chip${p.objectKind === "none" ? " on" : ""}`}
+              onClick={() => p.onObject("none")}
+            >
+              None
+            </button>
+            <button
+              className={`chip${p.objectKind === "disk" ? " on" : ""}`}
+              onClick={() => p.onObject("disk")}
+            >
+              Disk
+            </button>
+          </div>
+          {p.objectKind === "disk" ? (
+            <div className="field-hint" style={{ marginTop: 8 }}>
+              Tap the jet or set x, R on Plume. Default radius 20 mm.
+            </div>
+          ) : (
+            <div className="field-hint" style={{ marginTop: 8 }}>
+              Empty jet — no body in the flow.
+            </div>
+          )}
         </>
       ) : (
-        <div className="locked-note">
-          <div className="title">Thesis: collisionless jet</div>
-          <p>
-            Khasawneh–Cai 2-D free-molecular map from a frozen CEA exit. Auto and sudden-freeze stay off. A probe disk
-            on the centerline is the collisionless plate.
-          </p>
-        </div>
+        <>
+          <div className="h-label">Plume</div>
+          <div className="locked-note">
+            <div className="title">Thesis: collisionless jet</div>
+            <p>
+              Khasawneh–Cai 2-D free-molecular map from a frozen CEA exit. Auto and sudden-freeze stay off. A probe disk
+              on the centerline is the collisionless plate.
+            </p>
+          </div>
+        </>
       )}
 
       <div className="share-row">
-        <CopyLink href={p.shareHref} />
+        <CopyLink href={p.shareHref} mentionDisk={!advanced || p.objectKind === "disk"} />
       </div>
     </div>
   );
 }
 
-function CopyLink({ href }: { href: string }) {
+function CopyLink({ href, mentionDisk }: { href: string; mentionDisk: boolean }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   return (
     <>
@@ -270,7 +299,9 @@ function CopyLink({ href }: { href: string }) {
       >
         {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy link"}
       </button>
-      <span className="field-hint">Same generator, gas, and disk. They tap Run.</span>
+      <span className="field-hint">
+        {mentionDisk ? "Same generator, gas, and disk. They tap Run." : "Same generator, gas, and physics. They tap Run."}
+      </span>
     </>
   );
 }

@@ -3,6 +3,8 @@ export type TabId = "setup" | "plume" | "map";
 export type GasId = "O2" | "CO2" | "N2" | "Air" | "HeO2" | "Ar";
 export type SolveMode = "generator" | "enthalpy";
 export type PlumeMode = "auto" | "collisionless" | "sudden_freeze";
+/** Advanced Setup: whether a body sits in the jet. Thesis always allows the disk. */
+export type JetObject = "none" | "disk";
 export type FieldId = "t_ratio" | "n_ratio" | "h_tot" | "speed" | "mach" | "e_kin";
 
 export type Mixture = Record<string, number>;

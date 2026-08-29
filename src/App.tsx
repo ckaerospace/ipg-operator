@@ -25,12 +25,13 @@ import {
   P_TANK_DEFAULT,
   PROBE_TW_K,
 } from "./physics";
-import { parseShareSearch, shareUrl } from "./shareUrl";
+import { hydrateShareObject, parseShareSearch, shareUrl } from "./shareUrl";
 import { buildSolveBody } from "./solveBody";
 import type {
   CharacteristicsResponse,
   FacilityId,
   GasId,
+  JetObject,
   PlumeMode,
   SolveMode,
   SolveResponse,
@@ -48,6 +49,7 @@ type Boot = {
   hinj: number;
   pTank: number;
   layer: "thesis" | "advanced";
+  object: JetObject;
   diskX: number | null;
   diskR: number;
   diskTw: number;
@@ -64,6 +66,7 @@ function readBoot(): Boot {
   const meta = FACILITY_META[facility];
   const family = axisFamily(facility, meta.dt);
   const coerced = coerceOperatingPoint(family, share.pinj ?? d.pinj, share.mdot ?? d.mdot_mg_s);
+  const obj = hydrateShareObject(layer, share);
   return {
     facility,
     gas: share.gas ?? d.gas,
@@ -75,7 +78,8 @@ function readBoot(): Boot {
     hinj: share.hinj ?? d.hinj,
     pTank: share.ptank ?? P_TANK_DEFAULT,
     layer,
-    diskX: share.probe_x ?? null,
+    object: obj.object,
+    diskX: obj.diskX,
     diskR: share.probe_r ?? DISK_R_MM_DEFAULT,
     diskTw: PROBE_TW_K,
     autoRun: share.run === true,
@@ -100,7 +104,9 @@ export default function App() {
   const [diskX, setDiskX] = useState<number | null>(boot.diskX);
   const [diskR, setDiskR] = useState(boot.diskR);
   const [diskTw, setDiskTw] = useState(boot.diskTw);
+  const [objectKind, setObjectKind] = useState<JetObject>(boot.object);
   const advanced = layer === "advanced";
+  const showDisk = !advanced || objectKind === "disk";
   const [running, setRunning] = useState(false);
   const [waking, setWaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +171,7 @@ export default function App() {
             hinj_MJ_kg: h,
             mdot_mg_s: md,
             p_tank_Pa: pTank,
-            probe_x_m: diskX,
+            probe_x_m: showDisk ? diskX : null,
             probe_r_mm: diskR,
             probe_Tw_K: diskTw,
           }),
@@ -187,7 +193,7 @@ export default function App() {
         setWaking(false);
       }
     },
-    [advanced, layer, mode, pinj, hinj, mdotMg, pTank, plumeMode, gas, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, diskX, diskR, diskTw],
+    [advanced, layer, mode, pinj, hinj, mdotMg, pTank, plumeMode, gas, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, showDisk, diskX, diskR, diskTw],
   );
 
   useEffect(() => {
@@ -260,10 +266,11 @@ export default function App() {
         hinj,
         pTank,
         plumeMode,
-        diskX_m: diskX,
+        object: showDisk ? "disk" : "none",
+        diskX_m: showDisk ? diskX : null,
         diskR_mm: diskR,
       }),
-    [advanced, facility, gas, mode, pinj, mdotMg, hinj, pTank, plumeMode, diskX, diskR],
+    [advanced, facility, gas, mode, pinj, mdotMg, hinj, pTank, plumeMode, showDisk, diskX, diskR],
   );
 
   return (
@@ -325,6 +332,8 @@ export default function App() {
               writeLayer(next);
               setLayer(next);
             }}
+            objectKind={objectKind}
+            onObject={setObjectKind}
             shareHref={shareHref}
           />
         </section>
@@ -338,7 +347,8 @@ export default function App() {
             dt={geom.d_t_mm}
             de={geom.d_e_mm}
             advanced={advanced}
-            diskX={diskX}
+            showDisk={showDisk}
+            diskX={showDisk ? diskX : null}
             diskR={diskR}
             diskTw={diskTw}
             onDiskX={setDiskX}

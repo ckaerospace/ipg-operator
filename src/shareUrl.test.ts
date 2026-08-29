@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeShareSearch, parseShareSearch, shareUrl } from "./shareUrl";
+import { encodeShareSearch, hydrateShareObject, parseShareSearch, shareUrl } from "./shareUrl";
 import type { ShareFields } from "./shareUrl";
 
 const fields: ShareFields = {
@@ -12,6 +12,7 @@ const fields: ShareFields = {
   hinj: 17.4,
   pTank: 10,
   plumeMode: "auto",
+  object: "disk",
   diskX_m: 0.12,
   diskR_mm: 20,
 };
@@ -30,6 +31,7 @@ describe("share URL", () => {
     expect(q).not.toContain("ptank=");
     expect(q).toContain("probe_x=0.12");
     expect(q).toContain("probe_r=20");
+    expect(q).not.toContain("object=");
     expect(q).not.toContain("run=");
   });
 
@@ -48,11 +50,40 @@ describe("share URL", () => {
   });
 
   it("Advanced keeps tank and plume kernel", () => {
-    const q = encodeShareSearch({ ...fields, layer: "advanced", plumeMode: "sudden_freeze", pTank: 40 });
+    const q = encodeShareSearch({
+      ...fields,
+      layer: "advanced",
+      plumeMode: "sudden_freeze",
+      pTank: 40,
+      object: "none",
+    });
     const parsed = parseShareSearch(`?${q}`);
     expect(parsed.layer).toBe("advanced");
     expect(parsed.plume).toBe("sudden_freeze");
     expect(parsed.ptank).toBe(40);
+    expect(parsed.object).toBe("none");
+    expect(q).not.toContain("probe_x=");
+  });
+
+  it("Advanced Object Disk persists on/off and x/r", () => {
+    const q = encodeShareSearch({ ...fields, layer: "advanced", object: "disk" });
+    const parsed = parseShareSearch(`?${q}`);
+    expect(parsed.object).toBe("disk");
+    expect(parsed.probe_x).toBe(0.12);
+    expect(parsed.probe_r).toBe(20);
+  });
+
+  it("Advanced Object None does not auto-place a disk from leftover x", () => {
+    const q = encodeShareSearch({
+      ...fields,
+      layer: "advanced",
+      object: "none",
+      diskX_m: 0.12,
+    });
+    expect(q).toContain("object=none");
+    expect(q).not.toContain("probe_x=");
+    expect(q).not.toContain("probe_r=");
+    expect(parseShareSearch("?layer=advanced&facility=IPG4&probe_x=0.12").object).toBeUndefined();
   });
 
   it("omits the disk when it is not placed", () => {
@@ -71,6 +102,16 @@ describe("share URL", () => {
   it("clamps disk radius to 5–50 mm", () => {
     expect(parseShareSearch("?probe_r=3").probe_r).toBe(5);
     expect(parseShareSearch("?probe_r=80").probe_r).toBe(50);
+  });
+
+  it("does not auto-place a disk unless Thesis or Advanced Object Disk", () => {
+    expect(hydrateShareObject("thesis", { probe_x: 0.12 }).diskX).toBe(0.12);
+    expect(hydrateShareObject("thesis", { probe_x: 0.12 }).object).toBe("none");
+    expect(hydrateShareObject("advanced", { probe_x: 0.12 }).diskX).toBeNull();
+    expect(hydrateShareObject("advanced", { probe_x: 0.12 }).object).toBe("none");
+    expect(hydrateShareObject("advanced", { object: "none", probe_x: 0.12 }).diskX).toBeNull();
+    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).diskX).toBe(0.08);
+    expect(hydrateShareObject("advanced", { object: "disk" }).diskX).toBeNull();
   });
 
   it("builds from the live origin", () => {

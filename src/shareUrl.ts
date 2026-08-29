@@ -1,4 +1,4 @@
-import type { FacilityId, GasId, PlumeMode, SolveMode } from "./types";
+import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "./types";
 import {
   clampDiskRmm,
   clampDiskXm,
@@ -16,6 +16,7 @@ export type SharePoint = {
   hinj?: number;
   ptank?: number;
   plume?: PlumeMode;
+  object?: JetObject;
   probe_x?: number;
   probe_r?: number;
   run?: boolean;
@@ -31,6 +32,7 @@ export type ShareFields = {
   hinj: number;
   pTank: number;
   plumeMode: PlumeMode;
+  object: JetObject;
   diskX_m: number | null;
   diskR_mm: number;
 };
@@ -39,6 +41,7 @@ const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
 const GASES: GasId[] = ["O2", "CO2", "N2", "Air", "HeO2", "Ar"];
 const MODES: SolveMode[] = ["generator", "enthalpy"];
 const PLUMES: PlumeMode[] = ["auto", "collisionless", "sudden_freeze"];
+const OBJECTS: JetObject[] = ["none", "disk"];
 
 function num(q: URLSearchParams, key: string): number | undefined {
   const s = q.get(key);
@@ -66,6 +69,8 @@ export function parseShareSearch(search: string): SharePoint {
   if (mode) out.mode = mode;
   const plume = pick(q.get("plume"), PLUMES);
   if (plume) out.plume = plume;
+  const object = pick(q.get("object"), OBJECTS);
+  if (object) out.object = object;
   const pinj = num(q, "pinj");
   if (pinj != null) out.pinj = pinj;
   const mdot = num(q, "mdot");
@@ -94,8 +99,12 @@ export function encodeShareSearch(fields: ShareFields): string {
   if (fields.mode === "enthalpy") q.set("hinj", String(fields.hinj));
   const plume = fields.layer === "advanced" ? fields.plumeMode : "collisionless";
   q.set("plume", plume);
-  if (fields.layer === "advanced") q.set("ptank", String(clampTankPa(fields.pTank)));
-  if (fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
+  if (fields.layer === "advanced") {
+    q.set("ptank", String(clampTankPa(fields.pTank)));
+    q.set("object", fields.object === "disk" ? "disk" : "none");
+  }
+  const diskOn = fields.layer !== "advanced" || fields.object === "disk";
+  if (diskOn && fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
     q.set("probe_x", String(clampDiskXm(fields.diskX_m)));
     q.set("probe_r", String(clampDiskRmm(fields.diskR_mm ?? DISK_R_MM_DEFAULT)));
   }
@@ -133,6 +142,18 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/** Thesis always allows the disk. Advanced places one only when object=disk. */
+export function hydrateShareObject(
+  layer: "thesis" | "advanced",
+  share: SharePoint,
+): { object: JetObject; diskX: number | null } {
+  if (layer === "advanced") {
+    const object: JetObject = share.object === "disk" ? "disk" : "none";
+    return { object, diskX: object === "disk" ? (share.probe_x ?? null) : null };
+  }
+  return { object: "none", diskX: share.probe_x ?? null };
+}
+
 export function shareHasFields(p: SharePoint): boolean {
   return (
     p.layer != null ||
@@ -144,6 +165,7 @@ export function shareHasFields(p: SharePoint): boolean {
     p.hinj != null ||
     p.ptank != null ||
     p.plume != null ||
+    p.object != null ||
     p.probe_x != null ||
     p.probe_r != null ||
     p.run === true
