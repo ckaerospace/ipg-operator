@@ -144,7 +144,7 @@ describe("marching squares", () => {
 });
 
 describe("isoline labels", () => {
-  it("places 2–4 labels off the nozzle and not stacked", () => {
+  it("places labels off the nozzle and not stacked", () => {
     const g = rampX(11, 7, 4, 2);
     const levels = [1, 2, 3];
     const segs = fieldIsolines(g.xs, g.ys, g.field, g.nx, g.ny, levels, g.mask);
@@ -156,7 +156,7 @@ describe("isoline labels", () => {
       toPx: (x, y) => ({ x: x * 80, y: 200 - y * 80 }),
     });
     expect(labels.length).toBeGreaterThanOrEqual(2);
-    expect(labels.length).toBeLessThanOrEqual(4);
+    expect(labels.length).toBeLessThanOrEqual(3);
     expect(labels.every((l) => l.x >= 0.3 && l.y >= 0.15)).toBe(true);
     const texts = new Set(labels.map((l) => l.text));
     expect(texts.size).toBe(labels.length);
@@ -167,6 +167,80 @@ describe("isoline labels", () => {
         expect(Math.hypot(dx, dy)).toBeGreaterThan(12);
       }
     }
+  });
+
+  it("labels more than 5 of 12 levels in a roomy view, but not overlapping stacks", () => {
+    const g = rampX(25, 9, 12, 4);
+    const levels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 11.5];
+    const segs = fieldIsolines(g.xs, g.ys, g.field, g.nx, g.ny, levels, g.mask);
+    const toPx = (x: number, y: number) => ({ x: x * 36, y: 180 - y * 36 });
+    const labels = pickIsoLabels(stitchIso(segs), levels, {
+      xMin: 0.4,
+      yMin: 0.2,
+      xMax: 11.6,
+      yMax: 3.8,
+      toPx,
+    });
+    expect(labels.length).toBeGreaterThan(5);
+    expect(labels.length).toBeLessThanOrEqual(12);
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        const a = toPx(labels[i].x, labels[i].y);
+        const b = toPx(labels[j].x, labels[j].y);
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(12);
+      }
+    }
+    const cramped = pickIsoLabels(stitchIso(segs), levels, {
+      xMin: 0.4,
+      yMin: 0.2,
+      xMax: 11.6,
+      yMax: 3.8,
+      toPx: (x, y) => ({ x: x * 4, y: 20 - y * 4 }),
+    });
+    expect(cramped.length).toBeGreaterThan(0);
+    expect(cramped.length).toBeLessThan(labels.length);
+  });
+
+  it("keeps labels on a pinch-packed 0.05 / 0.12 / 0.14 set, not a 5-cap", () => {
+    const g = rampX(21, 9, 1, 0.4);
+    const levels = [0.05, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18, 0.2, 0.22, 0.25, 0.3, 0.35];
+    const segs = fieldIsolines(g.xs, g.ys, g.field, g.nx, g.ny, levels, g.mask);
+    const labels = pickIsoLabels(stitchIso(segs), levels, {
+      xMin: 0.04,
+      yMin: 0.03,
+      xMax: 0.38,
+      yMax: 0.37,
+      toPx: (x, y) => ({ x: 40 + x * 700, y: 220 - y * 480 }),
+    });
+    expect(labels.length).toBeGreaterThan(5);
+    expect(labels.length).toBeLessThanOrEqual(12);
+    const vals = labels.map((l) => l.level);
+    expect(vals).toEqual(expect.arrayContaining([0.12, 0.14]));
+    expect(vals.some((v) => v === 0.05 || v === 0.08 || v === 0.16)).toBe(true);
+  });
+
+  it("labels a y-mirror only when the two boxes do not collide", () => {
+    const levels = [2];
+    const chains = [
+      { level: 2, pts: [{ x: 2, y: 0.2 }, { x: 2, y: 1.8 }] },
+      { level: 2, pts: [{ x: 2, y: -0.2 }, { x: 2, y: -1.8 }] },
+    ];
+    const roomy = pickIsoLabels(chains, levels, {
+      xMin: 0.3,
+      yMin: -2,
+      xMax: 3.7,
+      yMax: 2,
+      toPx: (x, y) => ({ x: x * 80, y: 160 - y * 80 }),
+    });
+    expect(roomy.length).toBe(2);
+    const stacked = pickIsoLabels(chains, levels, {
+      xMin: 0.3,
+      yMin: -2,
+      xMax: 3.7,
+      yMax: 2,
+      toPx: (x, y) => ({ x: 40, y: 80 }),
+    });
+    expect(stacked.length).toBe(1);
   });
 
   it("skips a reserved overlay box", () => {

@@ -409,7 +409,8 @@ export function PlumeTab({
               the current millimetre window (log decades if that window spans more than 10×). Pinch packs more curves
               in the visible span — the colorbar stays the full-field range. Pinch zooms the millimetre map about the
               pinch; two-finger drag pans. Double-tap
-              or Reset returns to the fitted jet. Ticks and isoline labels re-layout on the current window — this does
+              or Reset returns to the fitted jet. Isoline labels reflow on the current window and skip collisions;
+              they are not capped at 5. This does
               not re-run CEA. E is
               directed ½ m U² in eV; E_O is the O-atom share of that directed energy; e_th is 1.5 kT.
             </p>

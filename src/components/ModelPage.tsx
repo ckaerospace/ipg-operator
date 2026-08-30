@@ -124,7 +124,9 @@ export function ModelPage() {
           millimetre map stays isotropic (1&nbsp;mm <i>x</i> = 1&nbsp;mm <i>y</i>); a wide wrap letterboxes and never
           stretches the jet. Pinch (two fingers) zooms about the pinch and pans; one finger stays the station pick.
           Double-tap or Reset restores the fitted window without moving the station. Ticks and isoline labels
-          re-layout on the current view and skip the Mach disk / “shock overlay” boxes. The station grid has a real
+          reflow on the current window and skip collisions (nozzle, Mach disk / “shock overlay” boxes, and each
+          other). They are not capped at 5 — a fitted jet with ~12 curves can show more than five numbers, and pinch
+          keeps labels on the new 1–2–5 set. The station grid has a real
           row gap. The empty-state line (“Empty nozzle field — Run a point to fill the jet”) shows only when there is
           no solve. After a solve there is no slogan and no hinj footnote on the Plume tab — those facts stay in this
           Model (§1, §7). The readout is clipped inside the Plume pane and does not cover Setup / Map

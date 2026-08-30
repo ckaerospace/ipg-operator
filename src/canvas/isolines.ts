@@ -345,7 +345,9 @@ function boxesOverlap(
 }
 
 /**
- * Place 2–4 labels on longer isolines. `xMin` keeps them off the nozzle (x≈0).
+ * Label as many current-window isolines as fit without overlapping.
+ * One label per chain; a level’s y-mirror is labelled only when it does not collide.
+ * `xMin` keeps them off the nozzle. Soft cap ~12 — not a hard 5.
  * Coordinates are world metres; `toPx` is used only for overlap in pixel space.
  */
 export function pickIsoLabels(
@@ -362,47 +364,52 @@ export function pickIsoLabels(
   },
 ): IsoLabel[] {
   const fmt = opts.fmt ?? fmtIsoValue;
-  const n = levels.length;
-  if (n === 0 || chains.length === 0) return [];
-  const want = n <= 3 ? n : n >= 8 ? 5 : n >= 6 ? 4 : 3;
-  const pick: number[] = [];
-  if (n <= 3) {
-    for (let i = 0; i < n; i++) pick.push(i);
-  } else {
-    for (let k = 0; k < want; k++) {
-      pick.push(Math.round(((k + 1) * (n + 1)) / (want + 1)) - 1);
-    }
-  }
-  const idx = [...new Set(pick.filter((i) => i >= 0 && i < n))];
+  if (!levels.length || !chains.length) return [];
   const labels: IsoLabel[] = [];
   const boxes: { x: number; y: number; w: number; h: number }[] = [...(opts.avoid ?? [])];
-  const fracs = [0.48, 0.36, 0.62, 0.28, 0.72, 0.2, 0.8];
+  const fracs = [0.22, 0.32, 0.42, 0.52, 0.62, 0.72, 0.18, 0.82, 0.28, 0.58, 0.68, 0.38];
+  const maxLabels = 12;
 
-  for (const i of idx) {
-    const level = levels[i];
+  const boxOf = (p: { x: number; y: number }) => {
+    const px = opts.toPx(p.x, p.y);
+    return { x: px.x - 16, y: px.y - 9, w: 36, h: 16 };
+  };
+  const farScore = (box: { x: number; y: number; w: number; h: number }) => {
+    if (!labels.length) return 0;
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    let best = Infinity;
+    for (const b of boxes) {
+      const d = Math.hypot(cx - (b.x + b.w / 2), cy - (b.y + b.h / 2));
+      if (d < best) best = d;
+    }
+    return best;
+  };
+
+  for (const level of levels) {
+    if (labels.length >= maxLabels) break;
     const cands = chains
       .filter((c) => c.level === level)
       .map((c) => ({ c, L: chainLength(c.pts) }))
       .sort((a, b) => b.L - a.L);
-    let placed = false;
     for (const { c, L } of cands) {
+      if (labels.length >= maxLabels) break;
       if (L < 1e-4) continue;
+      let best: { p: { x: number; y: number }; box: { x: number; y: number; w: number; h: number } } | null = null;
       for (const f of fracs) {
         const p = pointAt(c.pts, f);
         if (!p) continue;
         if (p.x < opts.xMin || p.y < opts.yMin) continue;
         if (p.x > opts.xMax || p.y > opts.yMax) continue;
-        const px = opts.toPx(p.x, p.y);
-        const box = { x: px.x - 18, y: px.y - 10, w: 40, h: 18 };
+        const box = boxOf(p);
         if (boxes.some((b) => boxesOverlap(box, b))) continue;
-        boxes.push(box);
-        labels.push({ x: p.x, y: p.y, text: fmt(level), level });
-        placed = true;
-        break;
+        const score = farScore(box);
+        if (!best || score > farScore(best.box)) best = { p, box };
       }
-      if (placed) break;
+      if (!best) continue;
+      boxes.push(best.box);
+      labels.push({ x: best.p.x, y: best.p.y, text: fmt(level), level });
     }
-    if (labels.length >= 5) break;
   }
-  return labels.slice(0, 5);
+  return labels;
 }
