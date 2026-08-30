@@ -1,0 +1,110 @@
+name: Bug report
+description: Report a problem with the plasma wind tunnel operator console
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for a defect in the operator console (Setup, Plume, Map, or Model).
+        Do not include personal names.
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      options:
+        - Thesis
+        - Advanced
+        - Model
+    validations:
+      required: true
+
+  - type: dropdown
+    id: facility
+    attributes:
+      label: Generator
+      options:
+        - IPG6-S
+        - IPG4
+        - IPG3
+        - Custom
+    validations:
+      required: true
+
+  - type: dropdown
+    id: gas
+    attributes:
+      label: Gas
+      options:
+        - O2
+        - CO2
+        - N2
+        - Air
+        - HeO2
+        - Ar
+    validations:
+      required: true
+
+  - type: input
+    id: mdot
+    attributes:
+      label: ṁ
+      description: Mass flow as shown in the console (mg/s or g/s).
+      placeholder: e.g. 13 mg/s
+    validations:
+      required: true
+
+  - type: input
+    id: pinj
+    attributes:
+      label: pinj
+      description: Chamber / injection pressure.
+      placeholder: e.g. 100 Pa
+    validations:
+      required: true
+
+  - type: input
+    id: p_tank
+    attributes:
+      label: p_tank
+      description: Tank / background pressure (Advanced). Use "n/a" on Thesis.
+      placeholder: e.g. 10 Pa
+    validations:
+      required: true
+
+  - type: dropdown
+    id: plume_mode
+    attributes:
+      label: plume_mode
+      options:
+        - collisionless (Thesis)
+        - auto
+        - collisionless
+        - sudden_freeze
+        - n/a (Model)
+    validations:
+      required: true
+
+  - type: textarea
+    id: tapped
+    attributes:
+      label: What you tapped
+      description: Controls, chips, Run, probe, Map, Model, etc.
+      placeholder: e.g. Setup → Advanced → Run → Plume → U
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
