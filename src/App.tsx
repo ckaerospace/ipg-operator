@@ -10,14 +10,12 @@ import {
   defaultPoint,
   FACILITY_META,
   geometryOf,
-  defaultPinjUnit,
   HINJ_MJ_MAX,
   HINJ_MJ_MIN,
   KNOWN_POINTS,
   mixtureFor,
   mdotMgLimits,
   pinjLimits,
-  type PinjUnit,
 } from "./facility";
 import {
   emptyCustomMix,
@@ -29,7 +27,7 @@ import {
   seedCustomMix,
   type CustomMix,
 } from "./mixture";
-import { fmt, fmtFixed, fmtMdot } from "./format";
+import { coupledPowerW, fmt, fmtFixed, fmtMdot, fmtN0, fmtPower } from "./format";
 import { operatorLayer, readLayer, writeLayer, type AppLayer } from "./layer";
 import {
   clampDiskRmm,
@@ -132,9 +130,6 @@ export default function App() {
   const [pinj, setPinj] = useState(boot.pinj);
   const [mdotMg, setMdotMg] = useState(boot.mdotMg);
   const [hinj, setHinj] = useState(boot.hinj);
-  const [pinjUnit, setPinjUnit] = useState<PinjUnit>(() =>
-    defaultPinjUnit(axisFamily(boot.facility, boot.custom.dt)),
-  );
   const [pTank, setPTank] = useState(boot.pTank);
   const pTankRef = useRef(pTank);
   const tankDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,9 +157,6 @@ export default function App() {
 
   const geom = geometryOf(facility, custom);
   const family = axisFamily(facility, geom.d_t_mm);
-  useEffect(() => {
-    setPinjUnit(defaultPinjUnit(family));
-  }, [family]);
   const pLim = pinjLimits(family);
   const mLim = mdotMgLimits(family);
 
@@ -456,8 +448,6 @@ export default function App() {
             diskTw={diskTw}
             onDiskR={(r) => setDiskR(clampDiskRmm(r))}
             onDiskTw={(t) => setDiskTw(clampProbeTw(t))}
-            pinjUnit={pinjUnit}
-            onPinjUnit={setPinjUnit}
             shareHref={shareHref}
           />
         </section>
@@ -494,8 +484,6 @@ export default function App() {
             facility={facility}
             initialPinj={pinj}
             initialHinj={hinj}
-            pinjUnit={pinjUnit}
-            onPinjUnit={setPinjUnit}
             onRunPoint={(p, h) => {
               clearTankDebounce();
               setMode("enthalpy");
@@ -534,7 +522,7 @@ export default function App() {
   );
 }
 
-function stripItems(
+export function stripItems(
   solve: SolveResponse,
   family: ReturnType<typeof axisFamily>,
   pTank: number,
@@ -551,8 +539,11 @@ function stripItems(
   const jet = jetMatch(solve, pTank);
   const nprLab = jet.npr == null ? "—" : fmtFixed(jet.npr, 2);
   const jetLab = jet.regime ? `${nprLab} · ${jet.regime}` : nprLab;
+  const pwr = coupledPowerW(solve.cea);
   const rows = [
     { k: "hinj", v: `${fmtFixed(solve.cea.hinj_MJ_kg, 2)} MJ/kg` },
+    { k: "n0", v: fmtN0(solve.plume.n0) },
+    { k: "power", v: Number.isFinite(pwr) ? fmtPower(pwr) : "—" },
     { k: "T_exit", v: `${fmt(ex.T0, 0)} K` },
     { k: "U", v: `${fmtFixed(ex.U0 / 1000, 2)} km/s` },
     { k: "x_O", v: fmtFixed(xO, 3) },

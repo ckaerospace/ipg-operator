@@ -161,4 +161,6 @@ export type ProbeSample = {
   e_th: number;
   h_tot: number;
   kn: number;
+  p_ram_Pa: number | null;
+  q_inc_W_m2: number | null;
 };

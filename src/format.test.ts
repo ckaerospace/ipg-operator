@@ -1,19 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { fmtPinjTick, fmtPinjUnit } from "./format";
+import { coupledPowerW, fmtN0, fmtPinjPa, fmtPinjTick, fmtPower } from "./format";
 
-describe("fmtPinjUnit", () => {
-  it("keeps Pa mode in pascals and does not auto-switch at 1000", () => {
-    expect(fmtPinjUnit(100, "Pa")).toBe("100 Pa");
-    expect(fmtPinjUnit(13, "Pa")).toMatch(/13/);
-    expect(fmtPinjUnit(2000, "Pa")).toMatch(/2,000 Pa|2000 Pa/);
+describe("fmtPinjPa", () => {
+  it("stays in pascals and does not auto-promote at 1000", () => {
+    expect(fmtPinjPa(100)).toBe("100 Pa");
+    expect(fmtPinjPa(13)).toMatch(/13/);
+    expect(fmtPinjPa(2000)).toMatch(/2,000 Pa|2000 Pa/);
+    expect(fmtPinjPa(5000)).toMatch(/5,000 Pa|5000 Pa/);
+    expect(fmtPinjPa(2000)).not.toMatch(/kPa/);
+    expect(fmtPinjTick(2000, 500)).toMatch(/2,000|2000/);
+    expect(fmtPinjTick(2000, 500)).not.toMatch(/kPa/);
   });
+});
 
-  it("shows compact kPa without trailing junk", () => {
-    expect(fmtPinjUnit(100, "kPa")).toBe("0.1 kPa");
-    expect(fmtPinjUnit(2900, "kPa")).toBe("2.9 kPa");
-    expect(fmtPinjUnit(1000, "kPa")).toBe("1 kPa");
-    expect(fmtPinjTick(100, "kPa", 50)).toBe("0.1");
-    expect(fmtPinjTick(2900, "kPa", 100)).toBe("2.9");
-    expect(fmtPinjTick(2000, "Pa", 500)).toMatch(/2,000|2000/);
+describe("fmtN0", () => {
+  it("prints compact scientific exit number density", () => {
+    expect(fmtN0(1.2e20)).toBe("1.2e20 m⁻³");
+    expect(fmtN0(1e20)).toBe("1.0e20 m⁻³");
+    expect(fmtN0(undefined)).toBe("—");
+    expect(fmtN0(Number.NaN)).toBe("—");
+  });
+});
+
+describe("coupledPowerW", () => {
+  it("prefers cea.power_W and otherwise uses ṁ × hinj", () => {
+    expect(coupledPowerW({ power_W: 296, mdot_mg_s: 13, hinj_MJ_kg: 23 })).toBe(296);
+    expect(coupledPowerW({ mdot_mg_s: 12.9, hinj_MJ_kg: 23 })).toBeCloseTo(12.9 * 23);
+    expect(fmtPower(296)).toBe("296 W");
+    expect(fmtPower(2500)).toMatch(/2\.5 kW/);
   });
 });

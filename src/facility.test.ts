@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   clampHinj,
   coerceOperatingPoint,
-  defaultPinjUnit,
   HINJ_MJ_MAX,
   HINJ_MJ_MIN,
   KNOWN_POINTS,
@@ -42,8 +41,5 @@ describe("family editor clamps", () => {
     expect(clampHinj(30)).toBe(30);
     expect(clampHinj(0)).toBe(1);
     expect(clampHinj(80)).toBe(70);
-    expect(defaultPinjUnit("IPG6-S")).toBe("Pa");
-    expect(defaultPinjUnit("IPG4")).toBe("kPa");
-    expect(defaultPinjUnit("IPG3")).toBe("kPa");
   });
 });

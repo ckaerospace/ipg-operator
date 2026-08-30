@@ -1,4 +1,4 @@
-import { usesGrams, type AxisFamily, type PinjUnit } from "./facility";
+import { usesGrams, type AxisFamily } from "./facility";
 
 export function fmt(n: number, digits = 2): string {
   if (!Number.isFinite(n)) return "—";
@@ -13,34 +13,13 @@ export function fmtFixed(n: number, digits: number): string {
   return n.toFixed(digits);
 }
 
-export function fmtPinj(pa: number): string {
-  if (pa >= 1000) return `${fmt(pa / 1000, 2)} kPa`;
-  return `${fmt(pa, pa >= 100 ? 0 : 1)} Pa`;
-}
-
-function trimDecimals(s: string): string {
-  if (!s.includes(".")) return s;
-  return s.replace(/0+$/, "").replace(/\.$/, "");
-}
-
-/** Display-only. Internal pinj stays pascals. */
-export function fmtPinjUnit(pa: number, unit: PinjUnit): string {
+/** Chamber pinj chrome — always Pa. Does not auto-promote to kPa. */
+export function fmtPinjPa(pa: number): string {
   if (!Number.isFinite(pa)) return "—";
-  if (unit === "kPa") {
-    const k = pa / 1000;
-    const digits = Math.abs(k) >= 10 ? 1 : 2;
-    return `${trimDecimals(k.toFixed(digits))} kPa`;
-  }
-  return `${fmt(pa, pa >= 100 ? 0 : 1)} Pa`;
+  return `${fmt(pa, Math.abs(pa) >= 100 ? 0 : 1)} Pa`;
 }
 
-export function fmtPinjTick(pa: number, unit: PinjUnit, stepPa: number): string {
-  if (unit === "kPa") {
-    const k = pa / 1000;
-    const stepK = Math.abs(stepPa) / 1000;
-    const digits = stepK >= 0.95 ? 0 : stepK >= 0.095 ? 1 : stepK >= 0.0095 ? 2 : 3;
-    return trimDecimals(k.toFixed(digits));
-  }
+export function fmtPinjTick(pa: number, stepPa: number): string {
   return fmt(pa, Math.abs(stepPa) >= 0.95 ? 0 : 1);
 }
 
@@ -50,8 +29,30 @@ export function fmtMdot(mdot_mg_s: number, family: AxisFamily): string {
 }
 
 export function fmtPower(w: number): string {
+  if (!Number.isFinite(w)) return "—";
   if (Math.abs(w) >= 1000) return `${fmt(w / 1000, 1)} kW`;
   return `${fmt(w, w >= 100 ? 0 : 1)} W`;
+}
+
+/** Frozen CEA exit number density (the n0 in n/n0). Compact scientific. */
+export function fmtN0(n0: number | null | undefined): string {
+  if (n0 == null || !Number.isFinite(n0) || n0 <= 0) return "—";
+  return `${n0.toExponential(1).replace("e+", "e")} m⁻³`;
+}
+
+/** Coupled generator power: cea.power_W, else ṁ (mg/s) × hinj (MJ/kg) = W. */
+export function coupledPowerW(cea: {
+  power_W?: number;
+  mdot_mg_s?: number;
+  hinj_MJ_kg?: number;
+}): number {
+  if (typeof cea.power_W === "number" && Number.isFinite(cea.power_W)) return cea.power_W;
+  const m = cea.mdot_mg_s;
+  const h = cea.hinj_MJ_kg;
+  if (typeof m === "number" && typeof h === "number" && Number.isFinite(m) && Number.isFinite(h)) {
+    return m * h;
+  }
+  return Number.NaN;
 }
 
 export function fmtPa(p: number): string {

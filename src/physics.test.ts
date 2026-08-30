@@ -3,6 +3,7 @@ import {
   clampProbeYm,
   faceMatchesSolve,
   fmtTankPa,
+  incidentRamFlux,
   parsePlumeProbe,
   PINJ_SLIDER_STEPS,
   pinjPaToSlider,
@@ -115,5 +116,31 @@ describe("pinj log slider", () => {
     expect(sliderToPinjPa(t100, min, max, step)).toBe(100);
     expect(sliderToPinjPa(0, min, max, step)).toBe(min);
     expect(sliderToPinjPa(PINJ_SLIDER_STEPS, min, max, step)).toBe(max);
+  });
+});
+
+describe("incidentRamFlux", () => {
+  const n_ratio = 0.1;
+  const n0 = 1e20;
+  const U = 3850;
+  const n = n_ratio * n0;
+  const e = 1.602176634e-19;
+
+  it("uses directed E: p_ram = 2 n E_J and q_inc = n U E_J", () => {
+    const flux = incidentRamFlux({ n_ratio, n0, e_kin_eV: 1.3, U, MW: 16 });
+    expect(flux).not.toBeNull();
+    const eJ = 1.3 * e;
+    expect(flux!.p_ram_Pa).toBeCloseTo(2 * n * eJ, 8);
+    expect(flux!.q_inc_W_m2).toBeCloseTo(n * U * eJ, 4);
+  });
+
+  it("falls back to CEA MW and U when E is missing, not n k T", () => {
+    const flux = incidentRamFlux({ n_ratio, n0, U, MW: 16 });
+    expect(flux).not.toBeNull();
+    const m = (16 * 1e-3) / 6.02214076e23;
+    expect(flux!.p_ram_Pa).toBeCloseTo(n * m * U * U, 8);
+    expect(flux!.q_inc_W_m2).toBeCloseTo(0.5 * n * m * U * U * U, 4);
+    const thermal = n * 1.380649e-23 * 2000;
+    expect(Math.abs(flux!.p_ram_Pa - thermal)).toBeGreaterThan(1e-6);
   });
 });

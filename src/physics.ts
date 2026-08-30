@@ -14,6 +14,32 @@ export const DISK_R_MM_MAX = 50;
 export const PROBE_TW_K = 300;
 
 const K_B = 1.380649e-23;
+const E_CHARGE = 1.602176634e-19;
+const N_A = 6.02214076e23;
+
+/** Incident free-stream ram pressure and energy flux. Not plate-face p_probe / q_probe. */
+export function incidentRamFlux(opts: {
+  n_ratio: number;
+  n0: number;
+  e_kin_eV?: number | null;
+  U: number;
+  MW?: number | null;
+}): { p_ram_Pa: number; q_inc_W_m2: number } | null {
+  const { n_ratio, n0, U } = opts;
+  if (![n_ratio, n0, U].every(Number.isFinite) || !(n0 > 0) || n_ratio < 0) return null;
+  const n = n_ratio * n0;
+  const E = opts.e_kin_eV;
+  if (typeof E === "number" && Number.isFinite(E) && E >= 0) {
+    const eJ = E * E_CHARGE;
+    return { p_ram_Pa: 2 * n * eJ, q_inc_W_m2: n * U * eJ };
+  }
+  const mw = opts.MW;
+  if (typeof mw === "number" && Number.isFinite(mw) && mw > 0) {
+    const m = (mw * 1e-3) / N_A;
+    return { p_ram_Pa: n * m * U * U, q_inc_W_m2: 0.5 * n * m * U * U * U };
+  }
+  return null;
+}
 
 export function clampTankPa(p: number): number {
   if (!Number.isFinite(p)) return P_TANK_DEFAULT;

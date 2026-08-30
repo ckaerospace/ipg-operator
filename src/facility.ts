@@ -80,12 +80,6 @@ export const HINJ_MJ_MIN = 1;
 export const HINJ_MJ_MAX = 70;
 export const HINJ_MJ_STEP = 0.1;
 
-export type PinjUnit = "Pa" | "kPa";
-
-export function defaultPinjUnit(family: AxisFamily): PinjUnit {
-  return family === "IPG6-S" ? "Pa" : "kPa";
-}
-
 export function clampHinj(h: number): number {
   if (!Number.isFinite(h)) return 23;
   return Math.min(HINJ_MJ_MAX, Math.max(HINJ_MJ_MIN, h));
