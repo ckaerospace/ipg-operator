@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   fieldMaskAlpha,
+  fieldRangeInView,
   fitView,
   MACH_DISK_LABEL,
   pinchPlumeView,
@@ -54,6 +55,42 @@ function gridPlume(over: Partial<SolveResponse["plume"]> = {}): SolveResponse["p
     ...over,
   };
 }
+
+describe("fieldRangeInView", () => {
+  it("uses the selected field only at nodes inside the millimetre window", () => {
+    const nx = 11;
+    const ny = 6;
+    const pl = gridPlume({
+      n_ratio: Array.from({ length: nx * ny }, () => 0.2),
+      t_ratio: Array.from({ length: nx * ny }, (_, k) => {
+        const i = k % nx;
+        return (i / (nx - 1)) * 2;
+      }),
+    });
+    const full = fieldRangeInView(pl, pl.t_ratio, { x0: 0, x1: 2, y0: -0.4, y1: 0.4 });
+    const near = fieldRangeInView(pl, pl.t_ratio, { x0: 0, x1: 0.45, y0: -0.2, y1: 0.2 });
+    expect(full).not.toBeNull();
+    expect(near).not.toBeNull();
+    expect(near![1]).toBeLessThan(full![1]);
+    expect(near![1]).toBeLessThan(0.7);
+  });
+
+  it("does not pull a cell corner that sits outside the window", () => {
+    const nx = 6;
+    const ny = 3;
+    const x = [0, 0.2, 0.4, 0.6, 0.8, 1];
+    const y = [0, 0.1, 0.2];
+    const n_ratio = Array.from({ length: nx * ny }, () => 0.2);
+    const t_ratio = Array.from({ length: nx * ny }, (_, k) => ((k % nx) === 0 ? 1 : 0.15));
+    const pl = gridPlume({ nx, ny, x, y, xmax_m: 1, ymax_m: 0.2, n_ratio, t_ratio });
+    // Overlaps cell [0, 0.2] — bilinear in the clip, not the exit node at x=0 (t=1).
+    const mid = fieldRangeInView(pl, pl.t_ratio, { x0: 0.15, x1: 0.35, y0: -0.15, y1: 0.15 });
+    expect(mid).not.toBeNull();
+    expect(mid![1]).toBeLessThan(0.5);
+    expect(mid![1]).toBeGreaterThan(0.15);
+    expect(mid![0]).toBeGreaterThanOrEqual(0.15);
+  });
+});
 
 describe("field map mask", () => {
   it("keeps vacuum and NaN fully dark", () => {

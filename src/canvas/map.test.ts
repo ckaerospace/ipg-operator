@@ -66,4 +66,20 @@ describe("packMapIsolines", () => {
     }
     expect(maxP).toBeGreaterThan(400);
   });
+
+  it("picks ṁ levels from the current Map window, not the fitted box", () => {
+    const ch = fakeCh();
+    const view = { p0: 40, p1: 160, h0: 12, h1: 22 };
+    const packed = packMapIsolines(ch, "IPG6-S", view);
+    expect(packed.mdot.length).toBeGreaterThanOrEqual(4);
+    for (const iso of packed.mdot) {
+      expect(iso.mdot_mg_s).toBeGreaterThan(0);
+      expect(iso.pinj_Pa.every((p) => p >= view.p0 - 1e-9 && p <= view.p1 + 1e-9)).toBe(true);
+      expect(iso.hinj_MJ_kg.every((h) => h >= view.h0 - 1e-9 && h <= view.h1 + 1e-9)).toBe(true);
+    }
+    const fitted = packMapIsolines(ch, "IPG6-S");
+    const viewMax = Math.max(...packed.mdot.map((i) => i.mdot_mg_s ?? 0));
+    const fitMax = Math.max(...fitted.mdot.map((i) => i.mdot_mg_s ?? 0));
+    expect(viewMax).toBeLessThan(fitMax);
+  });
 });

@@ -113,8 +113,10 @@ export function ModelPage() {
         <p>
           Color is a bilinear sample of the selected field (T/T0, n/n0, h_tot, U, M, E) on the{" "}
           <span className="mono">nx</span>×<span className="mono">ny</span> grid. Isolines are marching squares of
-          that same grid: about twelve even steps of the selected field, or equal log<sub>10</sub> spacing when{" "}
-          <i>hi</i>/<i>lo</i> ≥ 10, then snapped to 1–2–5. The field is never tinted by barrel or Mach disk. Changing
+          that same grid. Isoline levels are ~10–12 even 1–2–5 steps of the selected field in the current millimetre
+          window (equal log<sub>10</sub> when that window’s <i>hi</i>/<i>lo</i> ≥ 10). Pinch packs more curves in the
+          visible span of the same bilinear field — not a new CEA solve and not a scribble at the fitted view. The
+          colorbar stays the full-field range. The field is never tinted by barrel or Mach disk. Changing
           the field chip, placing a station, or pinching is not a new CEA solve.
         </p>
         <p>
@@ -132,9 +134,9 @@ export function ModelPage() {
           <span className="mono">hinj_min</span>–<span className="mono">hinj_max</span> ({HINJ_MJ_MIN}–{HINJ_MJ_MAX}
           &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). The pinj box is the Setup family clamp (IPG6-S 0–
           {pinjLimits("IPG6-S").max}&nbsp;Pa, IPG4 0–{pinjLimits("IPG4").max}&nbsp;Pa, IPG3 0–
-          {pinjLimits("IPG3").max}&nbsp;Pa) — not the API catalog clip 250/5000/3000. Extra ṁ and power isolines are
-          denser 1–2–5 traces of the same computed <i>k</i>(<i>h</i>)×<i>p</i>
-          <sub>inj</sub> identity on that box; this PWA does not invent <i>k</i> or a second characteristics call.
+          {pinjLimits("IPG3").max}&nbsp;Pa) — not the API catalog clip 250/5000/3000. Extra ṁ and power isolines are 1–2–5 traces of the same computed <i>k</i>(<i>h</i>)×<i>p</i>
+          <sub>inj</sub> identity in the current Map window (~12–16 in that span; pinch fills the window, fitted
+          density stays similar). This PWA does not invent <i>k</i> or a second characteristics call.
           Zoom-out cannot exceed that fitted box. Pa | kPa is display only (internal <span className="mono">pinj_Pa</span>{" "}
           stays pascals). If the wider hinj sweep fails, Map falls back to the previous characteristics request and
           still uses the returned hinj axes. Labels reflow.

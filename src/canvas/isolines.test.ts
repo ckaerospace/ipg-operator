@@ -86,6 +86,14 @@ describe("fieldIsoLevels", () => {
     expect(levels.every((v) => String(v).length < 8)).toBe(true);
   });
 
+  it("packs more 1–2–5 in a one-decade pinch window than 0.1 / 0.2 / 0.5", () => {
+    const levels = fieldIsoLevels(0.05, 0.5);
+    expect(levels.length).toBeGreaterThanOrEqual(6);
+    expect(levels.length).toBeLessThanOrEqual(16);
+    expect(levels.every((v) => v > 0.05 && v < 0.5)).toBe(true);
+    expect(levels.some((v) => v > 0.2 && v < 0.5)).toBe(true);
+  });
+
   it("does not emit ugly raw values", () => {
     for (const v of fieldIsoLevels(1.04, 6.173)) {
       expect(fmtIsoValue(v)).not.toMatch(/6\.173/);

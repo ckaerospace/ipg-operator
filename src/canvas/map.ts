@@ -112,11 +112,24 @@ function tracePinjOfH(
  * Extra ṁ / power isolines on the family pinj box × CEA hinj sweep.
  * Packed 1–2–5 so a pinched-in view still has several curves. Not a new CEA solve.
  */
-export function packMapIsolines(ch: CharacteristicsResponse, family: AxisFamily): {
+export function packMapIsolines(
+  ch: CharacteristicsResponse,
+  family: AxisFamily,
+  view?: MapView,
+): {
   mdot: Isoline[];
   power: Isoline[];
 } {
-  const box = mapAxesBox(ch, family);
+  const fitted = mapAxesBox(ch, family);
+  const box: MapView = view
+    ? {
+        p0: Math.max(fitted.p0, Math.min(view.p0, view.p1)),
+        p1: Math.min(fitted.p1, Math.max(view.p0, view.p1)),
+        h0: Math.max(fitted.h0, Math.min(view.h0, view.h1)),
+        h1: Math.min(fitted.h1, Math.max(view.h0, view.h1)),
+      }
+    : fitted;
+  if (!(box.p1 > box.p0) || !(box.h1 > box.h0)) return { mdot: ch.mdot_isolines, power: ch.power_isolines };
   const samples: { m: number; pwr: number }[] = [];
   const nh = 24;
   const np = 16;
@@ -257,7 +270,7 @@ export function drawCharacteristics(opts: {
     kinkLabs.push({ x: lay.l + 6, y: y - 2, text: k.label });
   }
 
-  const packed = packMapIsolines(ch, family);
+  const packed = packMapIsolines(ch, family, view);
   const nM = Math.max(1, packed.mdot.length - 1);
   const mdotLabs: { x: number; y: number; text: string; fill: string }[] = [];
   packed.mdot.forEach((iso, i) => {

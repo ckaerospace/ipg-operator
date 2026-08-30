@@ -89,6 +89,60 @@ function fieldRange(plume: SolveResponse["plume"], arr: number[]): [number, numb
   return [lo, hi];
 }
 
+/** Min/max of the selected field in the current millimetre view (same bilinear grid). */
+export function fieldRangeInView(
+  plume: SolveResponse["plume"],
+  arr: number[],
+  view: View,
+): [number, number] | null {
+  const { nx, ny, x, y, n_ratio } = plume;
+  if (nx < 2 || ny < 2) return null;
+  let lo = Infinity;
+  let hi = -Infinity;
+  const consider = (px: number, py: number) => {
+    const yy = Math.abs(py);
+    const n = sampleGrid(n_ratio, nx, ny, x, y, px, yy);
+    if (!Number.isFinite(n) || n < N_FAINT) return;
+    const v = sampleGrid(arr, nx, ny, x, y, px, yy);
+    if (!Number.isFinite(v)) return;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  };
+  const inView = (px: number, py: number) =>
+    px >= view.x0 && px <= view.x1 && py >= view.y0 && py <= view.y1;
+  for (let j = 0; j < ny; j++) {
+    if (y[j] < 0) continue;
+    for (let i = 0; i < nx; i++) {
+      if (inView(x[i], y[j]) || inView(x[i], -y[j])) consider(x[i], y[j]);
+    }
+  }
+  // Overlapping cells: sample the view-clipped rectangle, not corners outside the window.
+  for (let j = 0; j < ny - 1; j++) {
+    const cy0 = Math.min(y[j], y[j + 1]);
+    const cy1 = Math.max(y[j], y[j + 1]);
+    for (let i = 0; i < nx - 1; i++) {
+      const cx0 = Math.min(x[i], x[i + 1]);
+      const cx1 = Math.max(x[i], x[i + 1]);
+      if (cx1 < view.x0 || cx0 > view.x1) continue;
+      const clip = (yLo: number, yHi: number) => {
+        const ix0 = Math.max(cx0, view.x0);
+        const ix1 = Math.min(cx1, view.x1);
+        const iy0 = Math.max(yLo, view.y0);
+        const iy1 = Math.min(yHi, view.y1);
+        if (ix1 < ix0 || iy1 < iy0) return;
+        consider(ix0, iy0);
+        consider(ix1, iy0);
+        consider(ix0, iy1);
+        consider(ix1, iy1);
+      };
+      clip(cy0, cy1);
+      clip(-cy1, -cy0);
+    }
+  }
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+  return [lo, hi];
+}
+
 /** Frame the barrel when Advanced returns a Mach disk, so xmax_m=2 m does not shrink it off a phone. */
 export function shockFitExtents(plume: SolveResponse["plume"]): { x1: number; y1: number } | null {
   if (plume.shock_applied !== true) return null;
@@ -594,15 +648,14 @@ function drawIsolines(
   map: WorldMap,
   plume: SolveResponse["plume"],
   field: FieldId,
-  lo: number,
-  hi: number,
   view: View,
   de: number,
   avoid: { x: number; y: number; w: number; h: number }[] = [],
 ) {
   const arr = fieldArray(plume, field);
-  const used = fieldIsoLevels(lo, hi);
-  const fallback = used.length ? used : niceIsoLevels(lo, hi);
+  const vis = fieldRangeInView(plume, arr, view) ?? fieldRange(plume, arr);
+  const used = fieldIsoLevels(vis[0], vis[1]);
+  const fallback = used.length ? used : niceIsoLevels(vis[0], vis[1]);
   if (!fallback.length) return;
   const segs = fieldIsolines(plume.x, plume.y, arr, plume.nx, plume.ny, fallback, plume.n_ratio);
   const chains = stitchIso(segs);
@@ -699,7 +752,7 @@ export function drawPlumeFrame(opts: {
     [lo, hi] = fieldRange(pl, fieldArray(pl, field));
     drawFieldMap(ctx, map, pl, field, lo, hi);
     const shockPlan = showShocks ? shockOverlayPlan(map, solve) : null;
-    drawIsolines(ctx, map, pl, field, lo, hi, view, de, shockPlan?.boxes ?? []);
+    drawIsolines(ctx, map, pl, field, view, de, shockPlan?.boxes ?? []);
     if (shockPlan) drawShocks(ctx, map, shockPlan);
   }
 
