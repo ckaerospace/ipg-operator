@@ -1,4 +1,4 @@
-import { pinjLimits, usesGrams, type AxisFamily, type PinjUnit } from "../facility";
+import { pinjLimits, usesGrams, type AxisFamily } from "../facility";
 import { fmtMdotLabel, fmtPinjTick, fmtPower, moleLabel, speciesColor } from "../format";
 import type { CharacteristicsResponse, Isoline } from "../types";
 import { mdotStroke } from "./color";
@@ -216,10 +216,8 @@ export function drawCharacteristics(opts: {
   cursor: { pinj: number; hinj: number };
   marks?: { pinj: number; hinj: number; label: string }[];
   view?: MapView;
-  pinjUnit?: PinjUnit;
 }): MapLayout {
   const { ctx, cssW, cssH, dpr, ch, family, cursor, marks } = opts;
-  const pinjUnit = opts.pinjUnit ?? "Pa";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
   ctx.fillStyle = "#0b1724";
@@ -407,9 +405,9 @@ export function drawCharacteristics(opts: {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   for (const p of pTicks) {
-    ctx.fillText(fmtPinjTick(p, pinjUnit, pStep), lay.toX(p), lay.t + lay.h + 6);
+    ctx.fillText(fmtPinjTick(p, pStep), lay.toX(p), lay.t + lay.h + 6);
   }
-  ctx.fillText(pinjUnit === "kPa" ? "p_inj  [kPa]" : "p_inj  [Pa]", lay.l + lay.w / 2, cssH - 14);
+  ctx.fillText("p_inj  [Pa]", lay.l + lay.w / 2, cssH - 14);
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   for (const h of hTicks) {

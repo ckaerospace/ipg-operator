@@ -5,6 +5,8 @@ import {
   fitView,
   MACH_DISK_LABEL,
   pinchPlumeView,
+  snapStationYCss,
+  AXIS_SNAP_PX,
   SHOCK_OVERLAY,
   SHOCK_OVERLAY_CAPTION,
   shockFitExtents,
@@ -275,5 +277,15 @@ describe("pinchPlumeView", () => {
     const out = pinchPlumeView(bounds, 390, 390, mid, 160, mid, 40, bounds);
     expect(out.x1 - out.x0).toBeCloseTo(1);
     expect(out.x0).toBeCloseTo(bounds.x0);
+  });
+});
+
+describe("snapStationYCss", () => {
+  it("snaps to y = 0 inside a 12 px band and leaves farther picks free", () => {
+    expect(snapStationYCss(100, 100, 0.04)).toBe(0);
+    expect(snapStationYCss(100 + AXIS_SNAP_PX, 100, 0.04)).toBe(0);
+    expect(snapStationYCss(100 - AXIS_SNAP_PX, 100, -0.03)).toBe(0);
+    expect(snapStationYCss(100 + AXIS_SNAP_PX + 0.5, 100, 0.04)).toBeCloseTo(0.04);
+    expect(snapStationYCss(80, 100, -0.08)).toBeCloseTo(-0.08);
   });
 });

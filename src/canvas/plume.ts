@@ -1,6 +1,6 @@
 import type { FieldId, ProbeSample, SolveResponse } from "../types";
 import { K_EV } from "../format";
-import { parseBarrel, type Xy } from "../physics";
+import { incidentRamFlux, parseBarrel, type Xy } from "../physics";
 import { colorize } from "./color";
 import { fieldIsoLevels, fieldIsolines, fmtIsoValue, niceIsoLevels, pickIsoLabels, stitchIso } from "./isolines";
 import { sampleGrid } from "./sample";
@@ -14,6 +14,13 @@ import {
 } from "./viewZoom";
 
 export type View = { x0: number; x1: number; y0: number; y1: number };
+
+/** Soft-lock the plume centerline: ~12 CSS pixels from y = 0, independent of zoom. */
+export const AXIS_SNAP_PX = 12;
+
+export function snapStationYCss(cssY: number, axisCssY: number, yWorld: number, band = AXIS_SNAP_PX): number {
+  return Math.abs(cssY - axisCssY) <= band ? 0 : yWorld;
+}
 
 const N_FAINT = 8e-4;
 const N_SOLID = 0.02;
@@ -805,9 +812,16 @@ export function sampleProbe(solve: SolveResponse, x: number, y: number): ProbeSa
   const E = sampleGrid(pl.e_kin_eV, pl.nx, pl.ny, pl.x, pl.y, x, yy);
   const EO = sampleGrid(pl.e_O_eV, pl.nx, pl.ny, pl.x, pl.y, x, yy);
   const h = sampleGrid(pl.h_tot_MJ_kg, pl.nx, pl.ny, pl.x, pl.y, x, yy);
-  if (![n, tR, U, M, E, h].every(Number.isFinite)) return null;
+  if (![n, tR, U, M, h].every(Number.isFinite)) return null;
   const T = tR * pl.T0;
   const xO = solve.cea.exit.x_O ?? solve.cea.exit.mole_fractions?.O ?? 0;
+  const flux = incidentRamFlux({
+    n_ratio: n,
+    n0: pl.n0,
+    e_kin_eV: E,
+    U,
+    MW: solve.cea.exit.MW,
+  });
   return {
     x_m: x,
     y_m: yy,
@@ -821,5 +835,7 @@ export function sampleProbe(solve: SolveResponse, x: number, y: number): ProbeSa
     e_th: 1.5 * K_EV * T,
     h_tot: h,
     kn: pl.kn_gll_exit / Math.max(n, 1e-12),
+    p_ram_Pa: flux?.p_ram_Pa ?? null,
+    q_inc_W_m2: flux?.q_inc_W_m2 ?? null,
   };
 }
