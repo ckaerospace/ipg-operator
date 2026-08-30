@@ -11,9 +11,8 @@ import {
   type MapView,
 } from "../canvas/map";
 import { viewsClose } from "../canvas/viewZoom";
-import type { AxisFamily, PinjUnit } from "../facility";
-import { fmtMdot, fmtPinjUnit, fmtPower, moleLabel } from "../format";
-import { PinjUnitChips } from "./PinjUnitChips";
+import type { AxisFamily } from "../facility";
+import { fmtMdot, fmtPinjPa, fmtPower, moleLabel } from "../format";
 import { cssPoint, pairStats, PlotTouch, wheelScale } from "../gestures/plotTouch";
 import type { CharacteristicsResponse } from "../types";
 
@@ -27,8 +26,6 @@ type Props = {
   facility: string;
   initialPinj: number;
   initialHinj: number;
-  pinjUnit: PinjUnit;
-  onPinjUnit: (u: PinjUnit) => void;
   onRunPoint: (pinj: number, hinj: number) => void;
 };
 
@@ -42,8 +39,6 @@ export function MapTab({
   facility,
   initialPinj,
   initialHinj,
-  pinjUnit,
-  onPinjUnit,
   onRunPoint,
 }: Props) {
   const plotRef = useRef<HTMLCanvasElement>(null);
@@ -115,7 +110,6 @@ export function MapTab({
         cursor: cursorRef.current,
         marks,
         view: viewRef.current,
-        pinjUnit,
       });
       if (cc && cw) {
         fit(cc, cw);
@@ -159,7 +153,7 @@ export function MapTab({
       ro.disconnect();
       plot.removeEventListener("wheel", onWheel);
     };
-  }, [visible, ch, family, facility, cursor, pinjUnit]);
+  }, [visible, ch, family, facility, cursor]);
 
   const moveCursor = (e: PE<HTMLCanvasElement>) => {
     const lay = layRef.current;
@@ -276,9 +270,6 @@ export function MapTab({
 
   return (
     <>
-      <div className="map-unit-bar">
-        <PinjUnitChips unit={pinjUnit} onChange={onPinjUnit} />
-      </div>
       <div className="map-plot" ref={plotWrap}>
         <canvas
           ref={plotRef}
@@ -294,7 +285,7 @@ export function MapTab({
         )}
       </div>
       <div className="map-read">
-        {fmtPinjUnit(cursor.pinj, pinjUnit)} · {cursor.hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
+        {fmtPinjPa(cursor.pinj)} · {cursor.hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
         {fmtPower(readout?.power_W ?? 0)}
         {majors.length > 0 ? " · " : ""}
         {majors.map((s) => `${moleLabel(s.key)} ${s.x.toFixed(2)}`).join("  ")}

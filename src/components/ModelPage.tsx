@@ -93,7 +93,11 @@ export function ModelPage() {
         </p>
         <p>
           Station 4 is frozen: <b>T0 is the nozzle-exit translational temperature, not the chamber temperature</b>. U0
-          is the frozen exit bulk speed. Mole fractions on the strip are exit values.
+          is the frozen exit bulk speed. Mole fractions on the strip are exit values. After a solve the header strip
+          also shows <span className="mono">n0</span> (frozen CEA exit number density — the same <i>n</i>
+          <sub>0</sub> the <i>n</i>/<i>n</i>
+          <sub>0</sub> field is normalized to) and coupled generator power ṁ <i>h</i>
+          <sub>inj</sub>, not chamber pressure.
         </p>
 
         <h2>3. Thesis: collisionless 2-D planar jet</h2>
@@ -139,8 +143,8 @@ export function ModelPage() {
           {pinjLimits("IPG3").max}&nbsp;Pa) — not the API catalog clip 250/5000/3000. Extra ṁ and power isolines are 1–2–5 traces of the same computed <i>k</i>(<i>h</i>)×<i>p</i>
           <sub>inj</sub> identity in the current Map window (~12–16 in that span; pinch fills the window, fitted
           density stays similar). This PWA does not invent <i>k</i> or a second characteristics call.
-          Zoom-out cannot exceed that fitted box. Pa | kPa is display only (internal <span className="mono">pinj_Pa</span>{" "}
-          stays pascals). If the wider hinj sweep fails, Map falls back to the previous characteristics request and
+          Zoom-out cannot exceed that fitted box. Chamber <i>p</i>
+          <sub>inj</sub> is shown in Pa. If the wider hinj sweep fails, Map falls back to the previous characteristics request and
           still uses the returned hinj axes. Labels reflow.
           The composition plot does not zoom.
         </p>
@@ -154,16 +158,23 @@ export function ModelPage() {
         </p>
         <p>
           A station is always available — Thesis and Advanced, Object None or Probe. One-finger pointer down/move sets
-          (<i>x</i>, <i>y</i>) from the isotropic map; two-finger pinch does not move it. The marker sits at that
-          signed point. The grid shows <i>x</i>, <i>y</i>, <i>T</i>, n/n0, <i>U</i>, Mach, Kn, E (directed ½ <i>m</i>{" "}
-          <i>U</i>² in eV), E_O, e_th (1.5 <i>kT</i>), and h_tot from the bilinear sample at (<i>x</i>, |<i>y</i>|).
-          The tap is not a probe and not a Mach disk. Thesis has no probe chrome and no R / Tw / x editors.
+          (<i>x</i>, <i>y</i>) from the isotropic map; a pick within about 12 CSS pixels of the axis snaps <i>y</i> to
+          0 (soft — drag off the band and it leaves). Two-finger pinch does not move it. The marker sits at that
+          signed point. Station <i>x</i> and <i>y</i> are typed millimetres in the grid (same commit as a tap); there
+          is no bulky editor above the jet. Empty numeric fields keep a string draft while focused and revert on blur
+          rather than becoming 0. The grid also shows <i>T</i>, n/n0, <i>U</i>, Mach, Kn, E (directed ½ <i>m</i>{" "}
+          <i>U</i>² in eV), E_O, e_th (1.5 <i>kT</i>), h_tot, <span className="mono">p_ram</span>, and{" "}
+          <span className="mono">q_inc</span> from the bilinear sample at (<i>x</i>, |<i>y</i>|).{" "}
+          <span className="mono">p_ram</span> = <i>n</i> <i>m</i> <i>U</i>² and <span className="mono">q_inc</span> = ½{" "}
+          <i>n</i> <i>m</i> <i>U</i>³ are incident free-stream fluxes at the station, not plate-face{" "}
+          <span className="mono">p_probe</span> / <span className="mono">q_probe</span>. The tap is not a probe and
+          not a Mach disk. Thesis has no probe chrome and no R / Tw editors.
         </p>
         <p>
           Advanced Object Probe adds a <b>centerline</b> calorimeter plate — not a shock. Setup next to None|Probe
-          edits probe R (5–50&nbsp;mm, default 20) and Tw (200–2000&nbsp;K, default 300). There is no <i>x</i> editor
-          on Plume or Setup: tap sets station (<i>x</i>, <i>y</i>), and the plate uses that same <i>x</i> on the
-          centerline. <span className="mono">p_probe</span> (plate face pressure) and{" "}
+          edits probe R (5–50&nbsp;mm, default 20) and Tw (200–2000&nbsp;K, default 300). Tap or typed station{" "}
+          <i>x</i> sets the plate’s centerline <i>x</i> — there is no <i>y</i> on the plate.{" "}
+          <span className="mono">p_probe</span> (plate face pressure) and{" "}
           <span className="mono">q_probe</span> (plate heat flux) fill only after Run at that <i>x</i>, <i>R</i> —
           not on every drag. They are not tank <i>p</i>
           <sub>∞</sub> and not field-sample cells. Object None has no plate and no p_probe / q_probe row; the

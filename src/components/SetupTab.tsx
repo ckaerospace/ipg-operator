@@ -8,9 +8,8 @@ import {
   HINJ_MJ_STEP,
   KNOWN_POINTS,
   type AxisFamily,
-  type PinjUnit,
 } from "../facility";
-import { fmtFixed, fmtMdot, fmtPinjUnit } from "../format";
+import { fmtFixed, fmtMdot, fmtPinjPa } from "../format";
 import type { AppLayer } from "../layer";
 import { CUSTOM_SPECIES, mixtureSum, type CustomMix } from "../mixture";
 import {
@@ -26,8 +25,8 @@ import {
 } from "../physics";
 import { copyText } from "../shareUrl";
 import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "../types";
+import { DraftNumber } from "./DraftNumber";
 import { LayerBar } from "./LayerBar";
-import { PinjUnitChips } from "./PinjUnitChips";
 
 type Props = {
   facility: FacilityId;
@@ -66,8 +65,6 @@ type Props = {
   diskTw: number;
   onDiskR: (r: number) => void;
   onDiskTw: (t: number) => void;
-  pinjUnit: PinjUnit;
-  onPinjUnit: (u: PinjUnit) => void;
   shareHref: string;
 };
 
@@ -131,17 +128,13 @@ export function SetupTab(p: Props) {
           ).map(([lab, key, val]) => (
             <label className="field" key={key}>
               {lab}
-              <input
-                type="number"
-                inputMode="decimal"
+              <DraftNumber
+                value={val}
                 min={1}
                 max={499}
                 step={0.5}
-                value={val}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (Number.isFinite(n)) p.onCustom({ [key]: n });
-                }}
+                aria-label={lab}
+                onCommit={(n) => p.onCustom({ [key]: n })}
               />
             </label>
           ))}
@@ -174,8 +167,7 @@ export function SetupTab(p: Props) {
       <div className="slider">
         <div className="row">
           <div className="name">measured pinj</div>
-          <PinjUnitChips unit={p.pinjUnit} onChange={p.onPinjUnit} />
-          <div className="val">{fmtPinjUnit(p.pinj, p.pinjUnit)}</div>
+          <div className="val">{fmtPinjPa(p.pinj)}</div>
         </div>
         <input
           type="range"
@@ -252,17 +244,13 @@ export function SetupTab(p: Props) {
           </div>
           <label className="field" style={{ marginTop: 14 }}>
             <span>tank pressure</span>
-            <input
-              type="number"
-              inputMode="decimal"
+            <DraftNumber
+              value={p.pTank}
               min={P_TANK_MIN}
               max={P_TANK_MAX}
               step={0.1}
-              value={p.pTank}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (Number.isFinite(n)) p.onPTank(n);
-              }}
+              aria-label="tank pressure"
+              onCommit={(n) => p.onPTank(n)}
             />
             <span className="field-hint">Pa · background the jet expands into (0.1–5000)</span>
           </label>
@@ -299,35 +287,25 @@ export function SetupTab(p: Props) {
               <div className="disk-row disk-row-setup">
                 <label className="disk-field">
                   probe R
-                  <input
-                    type="number"
-                    inputMode="decimal"
+                  <DraftNumber
+                    value={p.diskR}
                     min={DISK_R_MM_MIN}
                     max={DISK_R_MM_MAX}
                     step={1}
-                    value={p.diskR}
-                    onChange={(e) => {
-                      const n = Number(e.target.value);
-                      if (Number.isFinite(n)) p.onDiskR(clampDiskRmm(n));
-                    }}
                     aria-label="Probe radius in millimetres"
+                    onCommit={(n) => p.onDiskR(clampDiskRmm(n))}
                   />
                   <span>mm</span>
                 </label>
                 <label className="disk-field">
                   Tw
-                  <input
-                    type="number"
-                    inputMode="decimal"
+                  <DraftNumber
+                    value={p.diskTw}
                     min={200}
                     max={2000}
                     step={10}
-                    value={p.diskTw}
-                    onChange={(e) => {
-                      const n = Number(e.target.value);
-                      if (Number.isFinite(n)) p.onDiskTw(clampProbeTw(n));
-                    }}
                     aria-label="Probe wall temperature in kelvin"
+                    onCommit={(n) => p.onDiskTw(clampProbeTw(n))}
                   />
                   <span>K</span>
                 </label>
@@ -366,7 +344,6 @@ export function SetupTab(p: Props) {
 }
 
 function MixEditor({ mix, onChange }: { mix: CustomMix; onChange: (mix: CustomMix) => void }) {
-  const [draft, setDraft] = useState<Partial<Record<(typeof CUSTOM_SPECIES)[number], string>>>({});
   const sum = mixtureSum(mix);
   return (
     <div className="mix-editor">
@@ -374,31 +351,13 @@ function MixEditor({ mix, onChange }: { mix: CustomMix; onChange: (mix: CustomMi
         {CUSTOM_SPECIES.map((s) => (
           <label className="field" key={s}>
             {s}
-            <input
-              type="number"
-              inputMode="decimal"
+            <DraftNumber
+              value={mix[s]}
               min={0}
               max={1}
               step={0.01}
-              value={draft[s] ?? String(mix[s])}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setDraft((d) => ({ ...d, [s]: raw }));
-                if (raw === "") {
-                  onChange({ ...mix, [s]: 0 });
-                  return;
-                }
-                const n = Number(raw);
-                if (!Number.isFinite(n)) return;
-                onChange({ ...mix, [s]: Math.min(1, Math.max(0, n)) });
-              }}
-              onBlur={() => {
-                setDraft((d) => {
-                  const next = { ...d };
-                  delete next[s];
-                  return next;
-                });
-              }}
+              aria-label={`${s} mole fraction`}
+              onCommit={(n) => onChange({ ...mix, [s]: n })}
             />
           </label>
         ))}

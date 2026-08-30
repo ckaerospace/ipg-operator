@@ -5,6 +5,7 @@ import {
   fitView,
   pinchPlumeView,
   sampleProbe,
+  snapStationYCss,
   wheelPlumeView,
   type View,
   type WorldMap,
@@ -28,6 +29,7 @@ import {
 } from "../physics";
 import { ADVANCED_REF_IDS } from "../refs";
 import type { FieldId, SolveResponse } from "../types";
+import { DraftNumber } from "./DraftNumber";
 import { BugReportLink, ManualLink, RefsList } from "./RefsList";
 
 const FIELDS: { id: FieldId; lab: string }[] = [
@@ -210,6 +212,16 @@ export function PlumeTab({
     onProbeY(clampProbeYm(y, ymax));
   };
 
+  const placeFromPointer = (e: PE<HTMLCanvasElement>) => {
+    const map = mapRef.current;
+    const canvas = canvasRef.current;
+    const w = toWorld(e);
+    if (!w || !map || !canvas) return;
+    const css = cssPoint(e, canvas);
+    const y = snapStationYCss(css.y, map.toY(0), w.y);
+    placeStation(w.x, y);
+  };
+
   const applyPinch = () => {
     const pair = touch.current.pair();
     const origin = touch.current.pinchOrigin;
@@ -252,9 +264,7 @@ export function PlumeTab({
       applyPinch();
       return;
     }
-    const w = toWorld(e);
-    if (!w) return;
-    placeStation(w.x, w.y);
+    placeFromPointer(e);
     setLegend(false);
   };
   const onMove = (e: PE<HTMLCanvasElement>) => {
@@ -266,9 +276,7 @@ export function PlumeTab({
       return;
     }
     if (kind !== "one") return;
-    const w = toWorld(e);
-    if (!w) return;
-    placeStation(w.x, w.y);
+    placeFromPointer(e);
   };
   const onUp = (e: PE<HTMLCanvasElement>) => {
     const pt = cssPoint(e, e.currentTarget);
@@ -373,8 +381,22 @@ export function PlumeTab({
       <div className={`probe-panel${probeOverflow ? " overflow" : ""}`}>
         <div className="probe-scroll" ref={probeScrollRef}>
         <div className="probe-grid">
-          <Cell l="x" v={diskX == null ? "—" : `${fmt(diskX * 1000, 1)} mm`} />
-          <Cell l="y" v={diskX == null ? "—" : `${fmt(probeY * 1000, 1)} mm`} />
+          <StationMm
+            l="x"
+            mm={diskX == null ? null : diskX * 1000}
+            min={0}
+            max={(solve?.plume.xmax_m ?? 2) * 1000}
+            ariaLabel="station x millimetres"
+            onCommitMm={(mm) => placeStation(mm / 1000, diskX == null ? 0 : probeY)}
+          />
+          <StationMm
+            l="y"
+            mm={diskX == null ? null : probeY * 1000}
+            min={-(solve?.plume.ymax_m ?? 2) * 1000}
+            max={(solve?.plume.ymax_m ?? 2) * 1000}
+            ariaLabel="station y millimetres"
+            onCommitMm={(mm) => placeStation(diskX ?? 0, mm / 1000)}
+          />
           <Cell l="T" v={sample ? `${fmt(sample.T, 0)} K` : "—"} />
           <Cell l="n/n0" v={sample ? fmtFixed(sample.n_ratio, 3) : "—"} />
           <Cell l="U" v={sample ? `${fmt(sample.U, 0)} m/s` : "—"} />
@@ -384,6 +406,8 @@ export function PlumeTab({
           <Cell l="E_O" v={sample?.e_O == null ? "—" : `${fmt(sample.e_O, 2)} eV`} />
           <Cell l="e_th" v={sample ? `${fmt(sample.e_th, 2)} eV` : "—"} />
           <Cell l="h_tot" v={sample ? `${fmt(sample.h_tot, 2)} MJ/kg` : "—"} />
+          <Cell l="p_ram" v={sample?.p_ram_Pa == null ? "—" : fmtPa(sample.p_ram_Pa)} />
+          <Cell l="q_inc" v={sample?.q_inc_W_m2 == null ? "—" : fmtHeatFlux(sample.q_inc_W_m2)} />
           {plateOn && (
             <>
               <Cell l="p_probe" v={pVal == null ? "—" : fmtPa(pVal)} />
@@ -416,11 +440,13 @@ export function PlumeTab({
             </p>
             <p>
               Station: tap anywhere on the plume — Thesis or Advanced, Object None or Probe. That pick is a field
-              sample at (x, y), not a probe and not a Mach disk. Incident T, n, U, M, Kn, E update at (x, |y|).
+              sample at (x, y), not a probe and not a Mach disk. Incident T, n, U, M, Kn, E, p_ram, and q_inc update
+              at (x, |y|). p_ram = n m U² and q_inc = ½ n m U³ are free-stream fluxes, not plate-face numbers.
               p_probe (plate face pressure) and q_probe (plate heat flux) appear only for Advanced Object Probe after
               Run at the tap’s x on the centerline plate — not tank p_∞ and not a field sample. Thesis
-              has no probe chrome. Tap sets station (x, y). Advanced Object Probe uses that same x for the
-              centerline plate; probe R and Tw stay on Setup. There is no x editor. Kn_obj = λ / (2R); kinetic if
+              has no probe chrome. Tap sets station (x, y); a pick near the axis snaps y to 0. Station x and y are
+              typed millimetres in this grid — not a second editor above the jet. Advanced Object Probe uses that
+              same x for the centerline plate; probe R and Tw stay on Setup. Kn_obj = λ / (2R); kinetic if
               Kn_obj ≥ {KN_OBJ_TRIGGER} (Khasawneh diffuse plate), continuum
               otherwise (Billig / Newtonian + stagnation heat). The Mach disk is a free-jet shock and is independent
               of the probe.
@@ -465,6 +491,41 @@ function Cell({ l, v }: { l: string; v: string }) {
     <div className="cell">
       <div className="l">{l}</div>
       <div className="v">{v}</div>
+    </div>
+  );
+}
+
+function StationMm({
+  l,
+  mm,
+  min,
+  max,
+  ariaLabel,
+  onCommitMm,
+}: {
+  l: string;
+  mm: number | null;
+  min: number;
+  max: number;
+  ariaLabel: string;
+  onCommitMm: (mm: number) => void;
+}) {
+  return (
+    <div className="cell">
+      <div className="l">{l}</div>
+      <div className="v cell-edit">
+        <DraftNumber
+          value={mm}
+          min={min}
+          max={max}
+          step={0.1}
+          format={(n) => n.toFixed(1)}
+          placeholder="—"
+          aria-label={ariaLabel}
+          onCommit={onCommitMm}
+        />
+        <span className="cell-unit">mm</span>
+      </div>
     </div>
   );
 }
