@@ -11,10 +11,10 @@ import {
   TANK_SOLVE_DEBOUNCE_MS,
 } from "../physics";
 import { ADVANCED_REF_IDS } from "../refs";
-import { LayerBar } from "./LayerBar";
-import { BugReportLink, RefsList } from "./RefsList";
 import { APP_VERSION, IS_BETA } from "../version";
 import { WHATS_NEW, WHATS_NEW_DATE } from "../whatsNew";
+import { LayerBar } from "./LayerBar";
+import { BugReportLink, RefsList } from "./RefsList";
 
 const IPG6_PINJ = pinjLimits("IPG6-S");
 const IPG6_MDOT = mdotMgLimits("IPG6-S");
@@ -134,17 +134,21 @@ export function ModelPage() {
         <p>
           The Plume figure is full phone width at height <span className="mono">min(48vh, 340px)</span>. The
           millimetre map stays isotropic (1&nbsp;mm <i>x</i> = 1&nbsp;mm <i>y</i>); a wide wrap letterboxes and never
-          stretches the jet. Pinch (two fingers) zooms about the pinch and pans; one finger stays the station pick.
-          Double-tap or Reset restores the fitted window without moving the station. Ticks and isoline labels
+          stretches the jet. Pinch (two fingers) zooms about the pinch centroid. One-finger or mouse-drag pans only
+          when already zoomed in (~8 CSS pixels of movement before a drag counts); at the fitted view, drag does
+          nothing. A tap still places the station. Zoom and pan never change station millimetres — the marker stays
+          on that (x, y). On a wide desktop the Plume figure is taller; the phone height is unchanged. Pinch or wheel
+          out returns to the fitted window without moving the station. Ticks and isoline labels
           reflow on the current window and skip collisions (nozzle, Mach disk / “shock overlay” boxes, and each
           other). They are not capped at 5 — a fitted jet with ~12 curves can show more than five numbers, and pinch
-          keeps labels on the new 1–2–5 set. The station grid has a real
+          keeps 1–2–5 labels on every plotted field (T/T0, n/n0, h_tot, U, M, E) in the current millimetre window, not
+          only n/n0. The station grid has a real
           row gap. The empty-state line (“Empty nozzle field — Run a point to fill the jet”) shows only when there is
           no solve. After a solve there is no slogan and no hinj footnote on the Plume tab — those facts stay in this
           Model (§1, §7). The readout is clipped inside the Plume pane and does not cover Setup / Map
-          tabs or the Thesis / Advanced chips. The Map <i>p</i>
+          tabs or the Thesis / Advanced chips.           The Map <i>p</i>
           <sub>inj</sub>–<i>h</i>
-          <sub>inj</sub> figure pinches the same way. The hinj axis is the characteristics sweep{" "}
+          <sub>inj</sub> figure pinches the same way and pans only when zoomed. The hinj axis is the characteristics sweep{" "}
           <span className="mono">hinj_min</span>–<span className="mono">hinj_max</span> ({HINJ_MJ_MIN}–{HINJ_MJ_MAX}
           &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). The pinj box is the Setup family clamp (IPG6-S 0–
           {pinjLimits("IPG6-S").max}&nbsp;Pa, IPG4 0–{pinjLimits("IPG4").max}&nbsp;Pa, IPG3 0–
@@ -165,9 +169,11 @@ export function ModelPage() {
           same object.
         </p>
         <p>
-          A station is always available — Thesis and Advanced, Object None or Probe. One-finger pointer down/move sets
-          (<i>x</i>, <i>y</i>) from the isotropic map; a pick within about 12 CSS pixels of the axis snaps <i>y</i> to
-          0 (soft — drag off the band and it leaves). Two-finger pinch does not move it. The marker sits at that
+          A station is always available — Thesis and Advanced, Object None or Probe. A tap (under about 8 CSS pixels
+          of movement) sets (<i>x</i>, <i>y</i>) from the isotropic map; a pick within about 12 CSS pixels of the axis
+          snaps <i>y</i> to 0. Drag does not move the station. When the millimetre window is already zoomed in,
+          one-finger or mouse-drag pans that window; at the fitted view, drag does nothing. Two-finger pinch zooms
+          about the pinch centroid and does not change station millimetres. The marker sits at that
           signed point. Station <i>x</i> and <i>y</i> are typed millimetres in the grid (same commit as a tap); there
           is no bulky editor above the jet. Empty numeric fields keep a string draft while focused and revert on blur
           rather than becoming 0. The grid also shows <i>T</i>, n/n0, <i>U</i>, Mach, Kn, E (directed ½ <i>m</i>{" "}
@@ -228,8 +234,10 @@ export function ModelPage() {
           </li>
         </ul>
         <p>
-          The operator can lock Collisionless or Sudden-freeze. Thesis never consults this switch. The Advanced strip
-          prints Kn_exit → the mode the chemistry API chose. This PWA does not integrate the switch locally; it posts{" "}
+          The operator can lock Collisionless or Sudden-freeze. Thesis never consults this switch. On Advanced Plume,
+          Collisionless and Freeze chips sit in the figure (bottom-left, above the x-axis) and re-solve that exclusive
+          pair; Auto stays on Setup only. Thesis has no plot chips. The Advanced strip prints Kn_exit → the mode the
+          chemistry API chose. This PWA does not integrate the switch locally; it posts{" "}
           <span className="mono">plume_mode</span> and displays <span className="mono">plume.mode</span>.
         </p>
         <p>
@@ -269,7 +277,9 @@ export function ModelPage() {
           pale dashed outline; the Mach disk is a brighter, thicker gold stroke with a dark halo — not a filled shock
           hue, and the bilinear field is never tinted by shocks.
           Station (green pick), probe plate, and Mach disk are three different glyphs. Thesis never draws this overlay.
-          Object None still shows the Mach disk in
+          A gold Disk chip on Advanced Plume is live only after Freeze ran with{" "}
+          <span className="mono">shock_applied</span>; off hides the barrel and Mach-disk overlay and does not change
+          the colormap. Collisionless requested hides Disk. Object None still shows the Mach disk in
           Advanced when shocks apply — the probe is not required. A thin bow is the probe-plate bow (Advanced Object
           Probe), stroked from <span className="mono">bow_xy</span> with the plate glyph — not the Mach disk, and not
           drawn on Thesis or Object None.
@@ -317,6 +327,7 @@ export function ModelPage() {
 
         <h2>9. References</h2>
         <RefsList ids={ADVANCED_REF_IDS} />
+
         <section className="whats-new" aria-labelledby="whats-new-h">
           <h2 id="whats-new-h">What&apos;s new</h2>
           <p className="whats-new-meta">
