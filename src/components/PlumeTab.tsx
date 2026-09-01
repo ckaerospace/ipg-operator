@@ -3,7 +3,6 @@ import {
   drawPlumeFrame,
   emptyView,
   fitView,
-  panPlumeView,
   pinchPlumeView,
   sampleProbe,
   snapStationYCss,
@@ -97,10 +96,10 @@ export function PlumeTab({
   );
   const touch = useRef(new PlotTouch());
   const pinchView = useRef<View | null>(null);
-  const panFrom = useRef<{ x: number; y: number } | null>(null);
   const paintRef = useRef<() => void>(() => {});
   const [field, setField] = useState<FieldId>("n_ratio");
   const [legend, setLegend] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
   const [shockOverlayOn, setShockOverlayOn] = useState(true);
   const [chipBox, setChipBox] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
   const probeScrollRef = useRef<HTMLDivElement>(null);
@@ -142,6 +141,7 @@ export function PlumeTab({
     fittedRef.current = fitted;
     viewRef.current = fitted;
     pinchView.current = null;
+    setZoomed(false);
   }, [solve, dc, dt, de]);
 
   useEffect(() => {
@@ -207,18 +207,30 @@ export function PlumeTab({
         wheelScale(e.deltaY),
         fittedRef.current,
       );
+      setZoomed(!viewsClose(viewRef.current, fittedRef.current));
       paint();
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
-    const onTouchMove = (e: TouchEvent) => e.preventDefault();
-    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
     paint();
     return () => {
       ro.disconnect();
       canvas.removeEventListener("wheel", onWheel);
-      canvas.removeEventListener("touchmove", onTouchMove);
     };
   }, [visible, solve, dc, dt, de, field, advanced, showDisk, diskX, probeY, diskR, shockOverlayOn, diskLive]);
+
+  const toWorld = (e: PE<HTMLCanvasElement>) => {
+    const map = mapRef.current;
+    const canvas = canvasRef.current;
+    if (!map || !canvas) return null;
+    const r = canvas.getBoundingClientRect();
+    const view = viewRef.current;
+    const x = map.fromX(e.clientX - r.left);
+    const y = map.fromY(e.clientY - r.top);
+    return {
+      x: Math.min(view.x1, Math.max(view.x0, x)),
+      y: Math.min(view.y1, Math.max(view.y0, y)),
+    };
+  };
 
   const placeStation = (x: number, y: number) => {
     const xmax = solve?.plume.xmax_m;
@@ -227,29 +239,14 @@ export function PlumeTab({
     onProbeY(clampProbeYm(y, ymax));
   };
 
-  const placeFromCss = (css: { x: number; y: number }) => {
+  const placeFromPointer = (e: PE<HTMLCanvasElement>) => {
     const map = mapRef.current;
-    if (!map) return;
-    const view = viewRef.current;
-    const x = Math.min(view.x1, Math.max(view.x0, map.fromX(css.x)));
-    const y = Math.min(view.y1, Math.max(view.y0, map.fromY(css.y)));
-    placeStation(x, snapStationYCss(css.y, map.toY(0), y));
-  };
-
-  const isZoomed = () => !viewsClose(viewRef.current, fittedRef.current);
-
-  const panBy = (from: { x: number; y: number }, to: { x: number; y: number }) => {
-    const wrap = wrapRef.current;
-    if (!wrap || !isZoomed()) return;
-    viewRef.current = panPlumeView(
-      viewRef.current,
-      wrap.clientWidth,
-      wrap.clientHeight,
-      from,
-      to,
-      fittedRef.current,
-    );
-    paintRef.current();
+    const canvas = canvasRef.current;
+    const w = toWorld(e);
+    if (!w || !map || !canvas) return;
+    const css = cssPoint(e, canvas);
+    const y = snapStationYCss(css.y, map.toY(0), w.y);
+    placeStation(w.x, y);
   };
 
   const applyPinch = () => {
@@ -269,6 +266,14 @@ export function PlumeTab({
       now.dist,
       fittedRef.current,
     );
+    setZoomed(!viewsClose(viewRef.current, fittedRef.current));
+    paintRef.current();
+  };
+
+  const resetView = () => {
+    viewRef.current = fittedRef.current;
+    pinchView.current = null;
+    setZoomed(false);
     paintRef.current();
   };
 
@@ -277,12 +282,16 @@ export function PlumeTab({
     e.currentTarget.setPointerCapture(e.pointerId);
     const pt = cssPoint(e, e.currentTarget);
     const kind = touch.current.down(e.pointerId, pt);
-    panFrom.current = pt;
+    if (kind === "double") {
+      resetView();
+      return;
+    }
     if (kind === "pinch") {
       pinchView.current = { ...viewRef.current };
       applyPinch();
       return;
     }
+    placeFromPointer(e);
     setLegend(false);
   };
   const onMove = (e: PE<HTMLCanvasElement>) => {
@@ -293,28 +302,13 @@ export function PlumeTab({
       applyPinch();
       return;
     }
-    if (kind === "drag") {
-      const from = panFrom.current ?? pt;
-      panBy(from, pt);
-      panFrom.current = pt;
-    }
+    if (kind !== "one") return;
+    placeFromPointer(e);
   };
   const onUp = (e: PE<HTMLCanvasElement>) => {
     const pt = cssPoint(e, e.currentTarget);
-    const result = touch.current.up(e.pointerId, pt);
+    touch.current.up(e.pointerId, pt);
     if (touch.current.count < 2) pinchView.current = null;
-    panFrom.current = null;
-    if (result === "tap") placeFromCss(pt);
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* already released */
-    }
-  };
-  const onCancel = (e: PE<HTMLCanvasElement>) => {
-    touch.current.up(e.pointerId, cssPoint(e, e.currentTarget));
-    if (touch.current.count < 2) pinchView.current = null;
-    panFrom.current = null;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -381,8 +375,13 @@ export function PlumeTab({
             onPointerDown={onDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
-            onPointerCancel={onCancel}
+            onPointerCancel={onUp}
           />
+          {zoomed && (
+            <button type="button" className="plot-reset" onClick={resetView}>
+              Reset
+            </button>
+          )}
           {showPlotChips && chipBox && (
             <div
               className="plot-phys"
@@ -496,10 +495,9 @@ export function PlumeTab({
               isolines are marching squares of that same grid. Levels are ~10–12 1–2–5 steps of the selected field in
               the current millimetre window (log decades if that window spans more than 10×). Pinch packs more curves
               in the visible span — the colorbar stays the full-field range. Pinch zooms the millimetre map about the
-              pinch centroid. One-finger or mouse-drag pans only when already zoomed (~8 px slop); at the fitted view,
-              drag does nothing. A tap still places the station. Zoom and pan do not change station millimetres.
-              Pinch or wheel out returns to the fitted jet. Isoline labels reflow on the current window for every
-              plotted field (not only n/n0) and skip collisions;
+              pinch; two-finger drag pans. Double-tap
+              or Reset returns to the fitted jet. Isoline labels reflow on the current window for every plotted field
+              (not only n/n0) and skip collisions;
               they are not capped at 5. This does
               not re-run CEA. E is
               directed ½ m U² in eV; E_O is the O-atom share of that directed energy; e_th is 1.5 kT.
@@ -510,7 +508,7 @@ export function PlumeTab({
               at (x, |y|). p_ram = n m U² and q_inc = ½ n m U³ are free-stream fluxes, not plate-face numbers.
               p_probe (plate face pressure) and q_probe (plate heat flux) appear only for Advanced Object Probe after
               Run at the tap’s x on the centerline plate — not tank p_∞ and not a field sample. Thesis
-              has no probe chrome. Tap sets station (x, y) and does not pan; a pick near the axis snaps y to 0. Station x and y are
+              has no probe chrome. Tap sets station (x, y); a pick near the axis snaps y to 0. Station x and y are
               typed millimetres in this grid — not a second editor above the jet. Advanced Object Probe uses that
               same x for the centerline plate; probe R and Tw stay on Setup. Kn_obj = λ / (2R); kinetic if
               Kn_obj ≥ {KN_OBJ_TRIGGER} (Khasawneh diffuse plate), continuum
