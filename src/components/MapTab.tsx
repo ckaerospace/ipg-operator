@@ -6,7 +6,6 @@ import {
   mapReadout,
   mapToRect,
   pinchMapView,
-  panMapView,
   wheelMapView,
   type MapLayout,
   type MapView,
@@ -50,10 +49,10 @@ export function MapTab({
   const viewRef = useRef<MapView | null>(null);
   const fittedRef = useRef<MapView | null>(null);
   const pinchView = useRef<MapView | null>(null);
-  const panFrom = useRef<{ x: number; y: number } | null>(null);
   const touch = useRef(new PlotTouch());
   const paintRef = useRef<() => void>(() => {});
   const [cursor, setCursor] = useState({ pinj: initialPinj, hinj: initialHinj });
+  const [zoomed, setZoomed] = useState(false);
   const cursorRef = useRef(cursor);
 
   useEffect(() => {
@@ -66,6 +65,7 @@ export function MapTab({
     fittedRef.current = fitted;
     viewRef.current = fitted;
     pinchView.current = null;
+    setZoomed(false);
   }, [ch, family]);
 
   useEffect(() => {
@@ -145,19 +145,17 @@ export function MapTab({
         wheelScale(e.deltaY),
         fitted,
       );
+      setZoomed(!viewsClose(mapToRect(viewRef.current), mapToRect(fitted)));
       paint();
     };
     plot.addEventListener("wheel", onWheel, { passive: false });
-    const onTouchMove = (e: TouchEvent) => e.preventDefault();
-    plot.addEventListener("touchmove", onTouchMove, { passive: false });
     return () => {
       ro.disconnect();
       plot.removeEventListener("wheel", onWheel);
-      plot.removeEventListener("touchmove", onTouchMove);
     };
   }, [visible, ch, family, facility, cursor]);
 
-  const pickCursor = (e: PE<HTMLCanvasElement>) => {
+  const moveCursor = (e: PE<HTMLCanvasElement>) => {
     const lay = layRef.current;
     const plot = plotRef.current;
     if (!lay || !plot || !ch) return;
@@ -166,22 +164,6 @@ export function MapTab({
     const pinj = Math.min(view.p1, Math.max(view.p0, lay.fromP(e.clientX - r.left)));
     const hinj = Math.min(view.h1, Math.max(view.h0, lay.fromH(e.clientY - r.top)));
     setCursor({ pinj, hinj });
-  };
-
-  const isZoomed = () => {
-    const view = viewRef.current;
-    const fitted = fittedRef.current;
-    if (!view || !fitted) return false;
-    return !viewsClose(mapToRect(view), mapToRect(fitted));
-  };
-
-  const panBy = (from: { x: number; y: number }, to: { x: number; y: number }) => {
-    const wrap = plotWrap.current;
-    const fitted = fittedRef.current;
-    const view = viewRef.current;
-    if (!wrap || !fitted || !view || !isZoomed()) return;
-    viewRef.current = panMapView(view, wrap.clientWidth, wrap.clientHeight, from, to, fitted);
-    paintRef.current();
   };
 
   const applyPinch = () => {
@@ -202,6 +184,14 @@ export function MapTab({
       now.dist,
       fitted,
     );
+    setZoomed(!viewsClose(mapToRect(viewRef.current), mapToRect(fitted)));
+    paintRef.current();
+  };
+
+  const resetView = () => {
+    if (fittedRef.current) viewRef.current = fittedRef.current;
+    pinchView.current = null;
+    setZoomed(false);
     paintRef.current();
   };
 
@@ -210,12 +200,16 @@ export function MapTab({
     e.currentTarget.setPointerCapture(e.pointerId);
     const pt = cssPoint(e, e.currentTarget);
     const kind = touch.current.down(e.pointerId, pt);
-    panFrom.current = pt;
+    if (kind === "double") {
+      resetView();
+      return;
+    }
     if (kind === "pinch") {
       pinchView.current = viewRef.current ? { ...viewRef.current } : null;
       applyPinch();
       return;
     }
+    moveCursor(e);
   };
 
   const onMove = (e: PE<HTMLCanvasElement>) => {
@@ -226,29 +220,12 @@ export function MapTab({
       applyPinch();
       return;
     }
-    if (kind === "drag") {
-      const from = panFrom.current ?? pt;
-      panBy(from, pt);
-      panFrom.current = pt;
-    }
+    if (kind === "one") moveCursor(e);
   };
 
   const onUp = (e: PE<HTMLCanvasElement>) => {
-    const result = touch.current.up(e.pointerId, cssPoint(e, e.currentTarget));
-    if (touch.current.count < 2) pinchView.current = null;
-    panFrom.current = null;
-    if (result === "tap") pickCursor(e);
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* already released */
-    }
-  };
-
-  const onCancel = (e: PE<HTMLCanvasElement>) => {
     touch.current.up(e.pointerId, cssPoint(e, e.currentTarget));
     if (touch.current.count < 2) pinchView.current = null;
-    panFrom.current = null;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -299,8 +276,13 @@ export function MapTab({
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
-          onPointerCancel={onCancel}
+          onPointerCancel={onUp}
         />
+        {zoomed && (
+          <button type="button" className="plot-reset" onClick={resetView}>
+            Reset
+          </button>
+        )}
       </div>
       <div className="map-read">
         {fmtPinjPa(cursor.pinj)} · {cursor.hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
