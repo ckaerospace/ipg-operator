@@ -7,8 +7,8 @@ import { sample1d } from "./sample";
 import { axisTicks, fmtTickNum, tickStep } from "./ticks";
 import {
   clampRectView,
-  pinchFocusShift,
   rectMinSpans,
+  shiftView,
   zoomRectAbout,
   type Pt,
   type RectView,
@@ -179,6 +179,15 @@ export function rectToMap(r: RectView): MapView {
   return { p0: r.x0, p1: r.x1, h0: r.y0, h1: r.y1 };
 }
 
+function lockMapCss(view: MapView, cssW: number, cssH: number, css: Pt, world: Pt, bounds: MapView): MapView {
+  const lay = mapLayout(cssW, cssH, view);
+  const now = { x: lay.fromP(css.x), y: lay.fromH(css.y) };
+  const mins = rectMinSpans(mapToRect(bounds));
+  return rectToMap(
+    clampRectView(shiftView(mapToRect(view), now.x - world.x, now.y - world.y), mapToRect(bounds), mins.minX, mins.minY, world),
+  );
+}
+
 export function pinchMapView(
   start: MapView,
   cssW: number,
@@ -193,17 +202,27 @@ export function pinchMapView(
   const focus = { x: lay0.fromP(startMid.x), y: lay0.fromH(startMid.y) };
   const scale = nowDist / Math.max(startDist, 1e-3);
   const zoomed = rectToMap(zoomRectAbout(mapToRect(start), focus, scale));
-  const lay1 = mapLayout(cssW, cssH, zoomed);
-  const nowW = { x: lay1.fromP(nowMid.x), y: lay1.fromH(nowMid.y) };
-  const mins = rectMinSpans(mapToRect(bounds));
-  return rectToMap(clampRectView(pinchFocusShift(mapToRect(zoomed), focus, nowW), mapToRect(bounds), mins.minX, mins.minY));
+  return lockMapCss(zoomed, cssW, cssH, nowMid, focus, bounds);
 }
 
 export function wheelMapView(view: MapView, cssW: number, cssH: number, css: Pt, scale: number, bounds: MapView): MapView {
   const lay = mapLayout(cssW, cssH, view);
   const focus = { x: lay.fromP(css.x), y: lay.fromH(css.y) };
-  const mins = rectMinSpans(mapToRect(bounds));
-  return rectToMap(clampRectView(zoomRectAbout(mapToRect(view), focus, scale), mapToRect(bounds), mins.minX, mins.minY));
+  return lockMapCss(rectToMap(zoomRectAbout(mapToRect(view), focus, scale)), cssW, cssH, css, focus, bounds);
+}
+
+/** Drag-pan the Map window so the axes point under `fromCss` stays under `toCss`. */
+export function panMapView(
+  view: MapView,
+  cssW: number,
+  cssH: number,
+  fromCss: Pt,
+  toCss: Pt,
+  bounds: MapView,
+): MapView {
+  const lay = mapLayout(cssW, cssH, view);
+  const grabbed = { x: lay.fromP(fromCss.x), y: lay.fromH(fromCss.y) };
+  return lockMapCss(view, cssW, cssH, toCss, grabbed, bounds);
 }
 
 export function drawCharacteristics(opts: {
