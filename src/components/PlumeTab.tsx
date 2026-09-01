@@ -3,6 +3,7 @@ import {
   drawPlumeFrame,
   emptyView,
   fitView,
+  panPlumeView,
   pinchPlumeView,
   sampleProbe,
   snapStationYCss,
@@ -28,7 +29,8 @@ import {
   TANK_SLIDER_STEPS,
 } from "../physics";
 import { ADVANCED_REF_IDS } from "../refs";
-import type { FieldId, SolveResponse } from "../types";
+import { diskChipLive, kernelChipOn, plotPhysicsVisible, shockOverlayDrawn } from "../plotChips";
+import type { FieldId, PlumeMode, SolveResponse } from "../types";
 import { DraftNumber } from "./DraftNumber";
 import { BugReportLink, ManualLink, RefsList } from "./RefsList";
 
@@ -50,6 +52,8 @@ type Props = {
   dt: number;
   de: number;
   advanced: boolean;
+  plumeMode: PlumeMode;
+  onPlotKernel: (m: "collisionless" | "sudden_freeze") => void;
   showDisk: boolean;
   diskX: number | null;
   probeY: number;
@@ -70,6 +74,8 @@ export function PlumeTab({
   dt,
   de,
   advanced,
+  plumeMode,
+  onPlotKernel,
   showDisk,
   diskX,
   probeY,
@@ -91,14 +97,26 @@ export function PlumeTab({
   );
   const touch = useRef(new PlotTouch());
   const pinchView = useRef<View | null>(null);
+  const panFrom = useRef<{ x: number; y: number } | null>(null);
   const paintRef = useRef<() => void>(() => {});
   const [field, setField] = useState<FieldId>("n_ratio");
   const [legend, setLegend] = useState(false);
-  const [zoomed, setZoomed] = useState(false);
+  const [shockOverlayOn, setShockOverlayOn] = useState(true);
+  const [chipBox, setChipBox] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
   const probeScrollRef = useRef<HTMLDivElement>(null);
   const [probeOverflow, setProbeOverflow] = useState(false);
   const solveRef = useRef(solve);
   const advancedRef = useRef(advanced);
+  const overlayOnRef = useRef(true);
+  const diskLiveRef = useRef(false);
+
+  const diskLive = diskChipLive({
+    advanced,
+    plumeMode,
+    solveMode: solve?.plume.mode,
+    shockApplied: solve?.plume.shock_applied,
+  });
+  const showPlotChips = plotPhysicsVisible(advanced);
 
   useEffect(() => {
     fieldRef.current = field;
@@ -112,13 +130,18 @@ export function PlumeTab({
   useEffect(() => {
     advancedRef.current = advanced;
   }, [advanced]);
+  useEffect(() => {
+    overlayOnRef.current = shockOverlayOn;
+  }, [shockOverlayOn]);
+  useEffect(() => {
+    diskLiveRef.current = diskLive;
+  }, [diskLive]);
 
   useEffect(() => {
     const fitted = solve ? fitView(solve.plume, dc, dt, de) : emptyView(dc, dt, de);
     fittedRef.current = fitted;
     viewRef.current = fitted;
     pinchView.current = null;
-    setZoomed(false);
   }, [solve, dc, dt, de]);
 
   useEffect(() => {
@@ -148,9 +171,13 @@ export function PlumeTab({
         probe: diskX != null ? { x: diskX, y: probeY } : null,
         disk,
         bow,
-        showShocks: advancedRef.current,
+        showShocks: shockOverlayDrawn(diskLiveRef.current, overlayOnRef.current),
       });
       mapRef.current = frame.map;
+      const p = frame.map.plot;
+      setChipBox((prev) =>
+        prev && prev.l === p.l && prev.t === p.t && prev.w === p.w && prev.h === p.h ? prev : { ...p },
+      );
     };
 
     const resize = () => {
@@ -180,30 +207,18 @@ export function PlumeTab({
         wheelScale(e.deltaY),
         fittedRef.current,
       );
-      setZoomed(!viewsClose(viewRef.current, fittedRef.current));
       paint();
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
+    const onTouchMove = (e: TouchEvent) => e.preventDefault();
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
     paint();
     return () => {
       ro.disconnect();
       canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("touchmove", onTouchMove);
     };
-  }, [visible, solve, dc, dt, de, field, advanced, showDisk, diskX, probeY, diskR]);
-
-  const toWorld = (e: PE<HTMLCanvasElement>) => {
-    const map = mapRef.current;
-    const canvas = canvasRef.current;
-    if (!map || !canvas) return null;
-    const r = canvas.getBoundingClientRect();
-    const view = viewRef.current;
-    const x = map.fromX(e.clientX - r.left);
-    const y = map.fromY(e.clientY - r.top);
-    return {
-      x: Math.min(view.x1, Math.max(view.x0, x)),
-      y: Math.min(view.y1, Math.max(view.y0, y)),
-    };
-  };
+  }, [visible, solve, dc, dt, de, field, advanced, showDisk, diskX, probeY, diskR, shockOverlayOn, diskLive]);
 
   const placeStation = (x: number, y: number) => {
     const xmax = solve?.plume.xmax_m;
@@ -212,14 +227,29 @@ export function PlumeTab({
     onProbeY(clampProbeYm(y, ymax));
   };
 
-  const placeFromPointer = (e: PE<HTMLCanvasElement>) => {
+  const placeFromCss = (css: { x: number; y: number }) => {
     const map = mapRef.current;
-    const canvas = canvasRef.current;
-    const w = toWorld(e);
-    if (!w || !map || !canvas) return;
-    const css = cssPoint(e, canvas);
-    const y = snapStationYCss(css.y, map.toY(0), w.y);
-    placeStation(w.x, y);
+    if (!map) return;
+    const view = viewRef.current;
+    const x = Math.min(view.x1, Math.max(view.x0, map.fromX(css.x)));
+    const y = Math.min(view.y1, Math.max(view.y0, map.fromY(css.y)));
+    placeStation(x, snapStationYCss(css.y, map.toY(0), y));
+  };
+
+  const isZoomed = () => !viewsClose(viewRef.current, fittedRef.current);
+
+  const panBy = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    const wrap = wrapRef.current;
+    if (!wrap || !isZoomed()) return;
+    viewRef.current = panPlumeView(
+      viewRef.current,
+      wrap.clientWidth,
+      wrap.clientHeight,
+      from,
+      to,
+      fittedRef.current,
+    );
+    paintRef.current();
   };
 
   const applyPinch = () => {
@@ -239,14 +269,6 @@ export function PlumeTab({
       now.dist,
       fittedRef.current,
     );
-    setZoomed(!viewsClose(viewRef.current, fittedRef.current));
-    paintRef.current();
-  };
-
-  const resetView = () => {
-    viewRef.current = fittedRef.current;
-    pinchView.current = null;
-    setZoomed(false);
     paintRef.current();
   };
 
@@ -255,16 +277,12 @@ export function PlumeTab({
     e.currentTarget.setPointerCapture(e.pointerId);
     const pt = cssPoint(e, e.currentTarget);
     const kind = touch.current.down(e.pointerId, pt);
-    if (kind === "double") {
-      resetView();
-      return;
-    }
+    panFrom.current = pt;
     if (kind === "pinch") {
       pinchView.current = { ...viewRef.current };
       applyPinch();
       return;
     }
-    placeFromPointer(e);
     setLegend(false);
   };
   const onMove = (e: PE<HTMLCanvasElement>) => {
@@ -275,13 +293,28 @@ export function PlumeTab({
       applyPinch();
       return;
     }
-    if (kind !== "one") return;
-    placeFromPointer(e);
+    if (kind === "drag") {
+      const from = panFrom.current ?? pt;
+      panBy(from, pt);
+      panFrom.current = pt;
+    }
   };
   const onUp = (e: PE<HTMLCanvasElement>) => {
     const pt = cssPoint(e, e.currentTarget);
-    touch.current.up(e.pointerId, pt);
+    const result = touch.current.up(e.pointerId, pt);
     if (touch.current.count < 2) pinchView.current = null;
+    panFrom.current = null;
+    if (result === "tap") placeFromCss(pt);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* already released */
+    }
+  };
+  const onCancel = (e: PE<HTMLCanvasElement>) => {
+    touch.current.up(e.pointerId, cssPoint(e, e.currentTarget));
+    if (touch.current.count < 2) pinchView.current = null;
+    panFrom.current = null;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -348,12 +381,43 @@ export function PlumeTab({
             onPointerDown={onDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
-            onPointerCancel={onUp}
+            onPointerCancel={onCancel}
           />
-          {zoomed && (
-            <button type="button" className="plot-reset" onClick={resetView}>
-              Reset
-            </button>
+          {showPlotChips && chipBox && (
+            <div
+              className="plot-phys"
+              style={{ left: chipBox.l + 5, top: chipBox.t + chipBox.h - 5 }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className={`plot-phys-chip${kernelChipOn(plumeMode, "collisionless") ? " on" : ""}`}
+                disabled={running}
+                aria-pressed={kernelChipOn(plumeMode, "collisionless")}
+                onClick={() => onPlotKernel("collisionless")}
+              >
+                Collisionless
+              </button>
+              <button
+                type="button"
+                className={`plot-phys-chip${kernelChipOn(plumeMode, "sudden_freeze") ? " on" : ""}`}
+                disabled={running}
+                aria-pressed={kernelChipOn(plumeMode, "sudden_freeze")}
+                onClick={() => onPlotKernel("sudden_freeze")}
+              >
+                Freeze
+              </button>
+              {diskLive ? (
+                <button
+                  type="button"
+                  className={`plot-phys-chip disk${shockOverlayOn ? " on" : ""}`}
+                  aria-pressed={shockOverlayOn}
+                  onClick={() => setShockOverlayOn((on) => !on)}
+                >
+                  Disk
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
       </div>
@@ -432,8 +496,10 @@ export function PlumeTab({
               isolines are marching squares of that same grid. Levels are ~10–12 1–2–5 steps of the selected field in
               the current millimetre window (log decades if that window spans more than 10×). Pinch packs more curves
               in the visible span — the colorbar stays the full-field range. Pinch zooms the millimetre map about the
-              pinch; two-finger drag pans. Double-tap
-              or Reset returns to the fitted jet. Isoline labels reflow on the current window and skip collisions;
+              pinch centroid. One-finger or mouse-drag pans only when already zoomed (~8 px slop); at the fitted view,
+              drag does nothing. A tap still places the station. Zoom and pan do not change station millimetres.
+              Pinch or wheel out returns to the fitted jet. Isoline labels reflow on the current window for every
+              plotted field (not only n/n0) and skip collisions;
               they are not capped at 5. This does
               not re-run CEA. E is
               directed ½ m U² in eV; E_O is the O-atom share of that directed energy; e_th is 1.5 kT.
@@ -444,7 +510,7 @@ export function PlumeTab({
               at (x, |y|). p_ram = n m U² and q_inc = ½ n m U³ are free-stream fluxes, not plate-face numbers.
               p_probe (plate face pressure) and q_probe (plate heat flux) appear only for Advanced Object Probe after
               Run at the tap’s x on the centerline plate — not tank p_∞ and not a field sample. Thesis
-              has no probe chrome. Tap sets station (x, y); a pick near the axis snaps y to 0. Station x and y are
+              has no probe chrome. Tap sets station (x, y) and does not pan; a pick near the axis snaps y to 0. Station x and y are
               typed millimetres in this grid — not a second editor above the jet. Advanced Object Probe uses that
               same x for the centerline plate; probe R and Tw stay on Setup. Kn_obj = λ / (2R); kinetic if
               Kn_obj ≥ {KN_OBJ_TRIGGER} (Khasawneh diffuse plate), continuum
@@ -457,7 +523,10 @@ export function PlumeTab({
                   Advanced: Auto switches at Kn_exit = 0.05. NPR = p_e / p_tank. The log slider under the figure is
                   tank pressure / p_∞ (0.1–5000 Pa); it stays in sync with Setup’s number field and debounces a solve
                   so barrel and Mach disk can move. Collisionless Physics ignores p_tank in the kernel — the slider
-                  may still refresh NPR if the API returns it, but this app never invents a Mach disk. When
+                  may still refresh NPR if the API returns it, but this app never invents a Mach disk. Collisionless
+                  and Freeze chips sit in the figure (bottom-left, above the x-axis) and re-solve the same exclusive
+                  pair as Setup Physics; Auto stays on Setup. A gold Disk chip is live only after Freeze ran with
+                  shock_applied — off hides barrel and Mach disk strokes and does not change the colormap. When
                   shock_applied, barrel (pale dashed outline) and Mach disk (bright gold chord) are a stroke overlay —
                   the bilinear field is not tinted with shock colors. The canvas caption is “shock overlay”. Station
                   (green pick), probe plate, and Mach disk are three different marks. Thesis never draws this overlay.
