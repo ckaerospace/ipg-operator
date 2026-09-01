@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Advanced Plume: Collisionless | Freeze chips in the figure (bottom-left, above the x-axis) re-solve the same exclusive pair as Setup Physics. Auto stays on Setup. A gold Disk chip is live only after Freeze ran with `shock_applied`; off hides the barrel and Mach-disk overlay without changing the colormap. Thesis has no plot chips.
-- Plume and Map: pinch and wheel zoom about the contact so the feature under the fingers stays there. One-finger or mouse-drag pans only when already zoomed (~8 px slop so a tap still places the Plume station). Zoom and pan do not change station millimetres. Pinch or wheel out returns to the fitted window — no Reset button, no double-tap, no mode switch. Desktop Plume plot is taller (`min(64vh, 520px)`); phone height is unchanged.
+- Desktop Plume plot is taller (`min(64vh, 520px)`); phone height is unchanged.
 
 ### Fixed
 
