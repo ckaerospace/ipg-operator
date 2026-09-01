@@ -8,7 +8,7 @@ import { axisTicks, fmtTickMm, tickStep } from "./ticks";
 import {
   clampIsoView,
   isoMinSpan,
-  pinchFocusShift,
+  shiftView,
   zoomIsoAbout,
   type Pt,
 } from "./viewZoom";
@@ -256,7 +256,14 @@ export function worldMap(w: number, h: number, view: View): WorldMap {
   };
 }
 
-/** Pinch/pan the isotropic millimetre window. Does not re-solve. */
+/** Shift so `world` sits under `css`, then clamp, keeping that point when the window still fits. */
+function lockPlumeCss(view: View, cssW: number, cssH: number, css: Pt, world: Pt, bounds: View): View {
+  const map = worldMap(cssW, cssH, view);
+  const now = { x: map.fromX(css.x), y: map.fromY(css.y) };
+  return clampIsoView(shiftView(view, now.x - world.x, now.y - world.y), bounds, isoMinSpan(bounds), world);
+}
+
+/** Pinch/pan the isotropic millimetre window. Does not re-solve. Does not move the station. */
 export function pinchPlumeView(
   startView: View,
   cssW: number,
@@ -271,15 +278,27 @@ export function pinchPlumeView(
   const focus = { x: map0.fromX(startMid.x), y: map0.fromY(startMid.y) };
   const scale = nowDist / Math.max(startDist, 1e-3);
   const zoomed = zoomIsoAbout(startView, focus, scale);
-  const map1 = worldMap(cssW, cssH, zoomed);
-  const nowW = { x: map1.fromX(nowMid.x), y: map1.fromY(nowMid.y) };
-  return clampIsoView(pinchFocusShift(zoomed, focus, nowW), bounds, isoMinSpan(bounds));
+  return lockPlumeCss(zoomed, cssW, cssH, nowMid, focus, bounds);
 }
 
 export function wheelPlumeView(view: View, cssW: number, cssH: number, css: Pt, scale: number, bounds: View): View {
   const map = worldMap(cssW, cssH, view);
   const focus = { x: map.fromX(css.x), y: map.fromY(css.y) };
-  return clampIsoView(zoomIsoAbout(view, focus, scale), bounds, isoMinSpan(bounds));
+  return lockPlumeCss(zoomIsoAbout(view, focus, scale), cssW, cssH, css, focus, bounds);
+}
+
+/** Drag-pan the millimetre window so the world under `fromCss` stays under `toCss`. */
+export function panPlumeView(
+  view: View,
+  cssW: number,
+  cssH: number,
+  fromCss: Pt,
+  toCss: Pt,
+  bounds: View,
+): View {
+  const map = worldMap(cssW, cssH, view);
+  const grabbed = { x: map.fromX(fromCss.x), y: map.fromY(fromCss.y) };
+  return lockPlumeCss(view, cssW, cssH, toCss, grabbed, bounds);
 }
 
 
