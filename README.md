@@ -67,6 +67,13 @@ If the API is asleep, the chrome stays up and the content pane shows **waking ch
 
 `hinj` is local/CEA specific enthalpy, not a cavity-calorimeter bulk measurement. IPG3 has no throat; recovered ṁ is approximate.
 
+## Version
+
+The live package is **1.0.0**. `CHANGELOG.md` is Keep a Changelog (newest first). The Model page shows a muted `v1.0.0` next to the title and a compact What’s new list under the model text.
+
+Set `VITE_CHANNEL=beta` at build time to add a tiny BETA mark next to the version. Production live does not set `VITE_CHANNEL`, so there is no BETA mark there.
+
+
 ## PWA
 
-`public/manifest.webmanifest` plus a small service worker (`public/sw.js`) enable Add to Home Screen. Theme color is `#07090d`.
+`public/manifest.webmanifest` plus a small service worker (`public/sw.js`, cache `ipg-shell-v2`) enable Add to Home Screen. Theme color is `#07090d`.
