@@ -47,6 +47,15 @@ describe("clampIsoView", () => {
     expect(c.y1).toBeLessThanOrEqual(bounds.y1 + 1e-12);
     expect(c.x0).toBeGreaterThanOrEqual(bounds.x0 - 1e-12);
   });
+
+  it("sizes about keep so a contact point holds its fraction", () => {
+    const v = { x0: 0.2, x1: 0.4, y0: -0.1, y1: 0.1 };
+    const keep = { x: 0.25, y: 0 };
+    const c = clampIsoView(v, bounds, 0.4, keep);
+    expect(c.x1 - c.x0).toBeCloseTo(0.4);
+    expect((keep.x - c.x0) / (c.x1 - c.x0)).toBeCloseTo((keep.x - v.x0) / (v.x1 - v.x0));
+    expect((keep.y - c.y0) / (c.y1 - c.y0)).toBeCloseTo((keep.y - v.y0) / (v.y1 - v.y0));
+  });
 });
 
 describe("isoMinSpan", () => {

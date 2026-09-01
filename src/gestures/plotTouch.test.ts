@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PlotTouch, pairStats, wheelScale } from "./plotTouch";
+import { PAN_SLOP_PX, PlotTouch, pairStats, wheelScale } from "./plotTouch";
 
 describe("PlotTouch", () => {
   it("treats one finger as pick and two as pinch", () => {
@@ -9,16 +9,29 @@ describe("PlotTouch", () => {
     expect(g.down(2, { x: 40, y: 18 })).toBe("pinch");
     expect(g.pinchOrigin).not.toBeNull();
     expect(g.move(2, { x: 48, y: 20 })).toBe("pinch");
-    g.up(2, { x: 48, y: 20 });
+    expect(g.up(2, { x: 48, y: 20 })).toBe("end");
     expect(g.move(1, { x: 14, y: 12 })).toBe("none");
-    g.up(1, { x: 14, y: 12 });
+    expect(g.up(1, { x: 14, y: 12 })).toBe("end");
   });
 
-  it("double-tap is a reset, not a pick", () => {
+  it("keeps a short move as a tap and a longer move as a drag", () => {
     const g = new PlotTouch();
-    expect(g.down(1, { x: 20, y: 20 }, 1000)).toBe("one");
-    g.up(1, { x: 20, y: 20 }, 1080);
-    expect(g.down(2, { x: 22, y: 21 }, 1280)).toBe("double");
+    expect(g.down(1, { x: 20, y: 20 })).toBe("one");
+    expect(g.move(1, { x: 20 + PAN_SLOP_PX - 1, y: 20 })).toBe("one");
+    expect(g.up(1, { x: 20 + PAN_SLOP_PX - 1, y: 20 })).toBe("tap");
+
+    const d = new PlotTouch();
+    expect(d.down(1, { x: 20, y: 20 })).toBe("one");
+    expect(d.move(1, { x: 20 + PAN_SLOP_PX, y: 20 })).toBe("drag");
+    expect(d.up(1, { x: 40, y: 20 })).toBe("end");
+  });
+
+  it("treats a second tap as another tap, not a reset", () => {
+    const g = new PlotTouch();
+    expect(g.down(1, { x: 20, y: 20 })).toBe("one");
+    expect(g.up(1, { x: 20, y: 20 })).toBe("tap");
+    expect(g.down(2, { x: 22, y: 21 })).toBe("one");
+    expect(g.up(2, { x: 22, y: 21 })).toBe("tap");
   });
 });
 
