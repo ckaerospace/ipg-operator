@@ -5,6 +5,7 @@ import {
   fitView,
   MACH_DISK_LABEL,
   pinchPlumeView,
+  panPlumeView,
   snapStationYCss,
   AXIS_SNAP_PX,
   SHOCK_OVERLAY,
@@ -12,6 +13,7 @@ import {
   shockFitExtents,
   shockOverlayPlan,
   squareWorld,
+  wheelPlumeView,
   worldMap,
 } from "./plume";
 import type { SolveResponse } from "../types";
@@ -277,6 +279,50 @@ describe("pinchPlumeView", () => {
     const out = pinchPlumeView(bounds, 390, 390, mid, 160, mid, 40, bounds);
     expect(out.x1 - out.x0).toBeCloseTo(1);
     expect(out.x0).toBeCloseTo(bounds.x0);
+  });
+});
+
+describe("station millimetres stay put under zoom and pan", () => {
+  const bounds = { x0: -0.1, x1: 0.9, y0: -0.5, y1: 0.5 };
+
+  it("keeps a station under the wheel cursor when zooming about it", () => {
+    const start = { ...bounds };
+    const station = { x: 0.2, y: 0.05 };
+    const map0 = worldMap(390, 390, start);
+    const css = { x: map0.toX(station.x), y: map0.toY(station.y) };
+    const next = wheelPlumeView(start, 390, 390, css, 2, bounds);
+    const map1 = worldMap(390, 390, next);
+    expect(map1.fromX(css.x)).toBeCloseTo(station.x, 3);
+    expect(map1.fromY(css.y)).toBeCloseTo(station.y, 3);
+    expect(map1.toX(station.x)).toBeCloseTo(css.x, 1);
+    expect(map1.toY(station.y)).toBeCloseTo(css.y, 1);
+  });
+
+  it("slides the window so the grabbed point stays under the drag", () => {
+    const view = { x0: 0.1, x1: 0.5, y0: -0.2, y1: 0.2 };
+    const map0 = worldMap(390, 390, view);
+    const from = { x: 200, y: 200 };
+    const to = { x: 230, y: 180 };
+    const world = { x: map0.fromX(from.x), y: map0.fromY(from.y) };
+    const next = panPlumeView(view, 390, 390, from, to, bounds);
+    const map1 = worldMap(390, 390, next);
+    expect(map1.fromX(to.x)).toBeCloseTo(world.x, 5);
+    expect(map1.fromY(to.y)).toBeCloseTo(world.y, 5);
+    expect(next.x1 - next.x0).toBeCloseTo(view.x1 - view.x0);
+  });
+
+  it("keeps the pinch centroid on the same millimetre when the midpoint moves", () => {
+    const start = { x0: 0, x1: 1, y0: -0.5, y1: 0.5 };
+    const map0 = worldMap(390, 390, start);
+    const station = { x: 0.2, y: 0.05 };
+    const mid0 = { x: map0.toX(station.x), y: map0.toY(station.y) };
+    const mid1 = { x: mid0.x + 24, y: mid0.y - 18 };
+    const next = pinchPlumeView(start, 390, 390, mid0, 80, mid1, 160, bounds);
+    const map1 = worldMap(390, 390, next);
+    expect(map1.fromX(mid1.x)).toBeCloseTo(station.x, 3);
+    expect(map1.fromY(mid1.y)).toBeCloseTo(station.y, 3);
+    expect(map1.toX(station.x)).toBeCloseTo(mid1.x, 1);
+    expect(map1.toY(station.y)).toBeCloseTo(mid1.y, 1);
   });
 });
 
