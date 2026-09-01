@@ -79,6 +79,7 @@ type SolveOverride = {
   mdot?: number;
   goPlume?: boolean;
   pTank?: number;
+  plumeMode?: PlumeMode;
 };
 
 function readBoot(): Boot {
@@ -211,6 +212,7 @@ export default function App() {
       const h = override?.hinj ?? hinj;
       const md = override?.mdot ?? mdotMg;
       const sentTank = clampTankPa(override?.pTank ?? pTankRef.current);
+      const sentPlume = override?.plumeMode ?? plumeMode;
       const sentX = showDisk ? diskX : null;
       const sentR = effectiveDiskR;
       setRunning(true);
@@ -220,7 +222,7 @@ export default function App() {
         const res = await postSolve(
           buildSolveBody({
             layer,
-            plumeMode,
+            plumeMode: sentPlume,
             mode: m,
             mixture: mix,
             d_c_mm: geom.d_c_mm,
@@ -461,6 +463,11 @@ export default function App() {
             dt={geom.d_t_mm}
             de={geom.d_e_mm}
             advanced={advanced}
+            plumeMode={plumeMode}
+            onPlotKernel={(m) => {
+              setPlumeMode(m);
+              void runSolve({ plumeMode: m });
+            }}
             showDisk={showDisk}
             diskX={diskX}
             probeY={probeY}
