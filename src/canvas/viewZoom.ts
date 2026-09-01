@@ -38,27 +38,14 @@ export function zoomIsoAbout(view: RectView, focus: Pt, scale: number): RectView
   };
 }
 
-/**
- * Square window inside `bounds`. Cannot grow past bounds or shrink below `minSpan`.
- * When `keep` is set, size about that world point so a jet feature stays under the contact.
- */
-export function clampIsoView(view: RectView, bounds: RectView, minSpan: number, keep?: Pt): RectView {
+/** Square window inside `bounds`. Cannot grow past bounds or shrink below `minSpan`. */
+export function clampIsoView(view: RectView, bounds: RectView, minSpan: number): RectView {
   const maxSpan = Math.max(viewSpanX(bounds), viewSpanY(bounds), minSpan);
   const lo = Math.min(minSpan, maxSpan);
-  const oldSpan = Math.max(viewSpanX(view), viewSpanY(view), 1e-12);
   let span = Math.max(viewSpanX(view), viewSpanY(view));
   span = Math.min(maxSpan, Math.max(lo, span));
-  let x0: number;
-  let y0: number;
-  if (keep) {
-    const tx = (keep.x - view.x0) / oldSpan;
-    const ty = (keep.y - view.y0) / oldSpan;
-    x0 = keep.x - tx * span;
-    y0 = keep.y - ty * span;
-  } else {
-    x0 = (view.x0 + view.x1) / 2 - span / 2;
-    y0 = (view.y0 + view.y1) / 2 - span / 2;
-  }
+  let x0 = (view.x0 + view.x1) / 2 - span / 2;
+  let y0 = (view.y0 + view.y1) / 2 - span / 2;
   if (x0 < bounds.x0) x0 = bounds.x0;
   if (x0 + span > bounds.x1) x0 = bounds.x1 - span;
   if (y0 < bounds.y0) y0 = bounds.y0;
@@ -87,23 +74,13 @@ export function clampRectView(
   bounds: RectView,
   minSpanX: number,
   minSpanY: number,
-  keep?: Pt,
 ): RectView {
   const maxX = Math.max(viewSpanX(bounds), minSpanX);
   const maxY = Math.max(viewSpanY(bounds), minSpanY);
-  const oldX = Math.max(viewSpanX(view), 1e-12);
-  const oldY = Math.max(viewSpanY(view), 1e-12);
   const sx = Math.min(maxX, Math.max(Math.min(minSpanX, maxX), viewSpanX(view)));
   const sy = Math.min(maxY, Math.max(Math.min(minSpanY, maxY), viewSpanY(view)));
-  let x0: number;
-  let y0: number;
-  if (keep) {
-    x0 = keep.x - ((keep.x - view.x0) / oldX) * sx;
-    y0 = keep.y - ((keep.y - view.y0) / oldY) * sy;
-  } else {
-    x0 = (view.x0 + view.x1) / 2 - sx / 2;
-    y0 = (view.y0 + view.y1) / 2 - sy / 2;
-  }
+  let x0 = (view.x0 + view.x1) / 2 - sx / 2;
+  let y0 = (view.y0 + view.y1) / 2 - sy / 2;
   if (x0 < bounds.x0) x0 = bounds.x0;
   if (x0 + sx > bounds.x1) x0 = bounds.x1 - sx;
   if (y0 < bounds.y0) y0 = bounds.y0;
