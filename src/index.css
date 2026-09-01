@@ -447,6 +447,20 @@ select {
   display: block;
   touch-action: none;
 }
+.plot-reset {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(12, 18, 24, 0.86);
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 650;
+}
 .plot-phys {
   position: absolute;
   z-index: 4;
