@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CharacteristicsResponse } from "../types";
-import { axesView, compositionDash, compositionDrawOrder, isElectron, isPositiveIon, packMapIsolines } from "./map";
+import { axesView, compositionDash, compositionDrawOrder, isElectron, isPositiveIon, mapLayout, packMapIsolines, panMapView } from "./map";
 
 function fakeCh(): CharacteristicsResponse {
   const hinj_MJ_kg = Array.from({ length: 9 }, (_, i) => 5 + i * 4);
@@ -81,5 +81,22 @@ describe("packMapIsolines", () => {
     const viewMax = Math.max(...packed.mdot.map((i) => i.mdot_mg_s ?? 0));
     const fitMax = Math.max(...fitted.mdot.map((i) => i.mdot_mg_s ?? 0));
     expect(viewMax).toBeLessThan(fitMax);
+  });
+});
+
+describe("panMapView", () => {
+  it("keeps the grabbed axes point under the drag", () => {
+    const bounds = { p0: 0, p1: 2000, h0: 5, h1: 37 };
+    const view = { p0: 200, p1: 800, h0: 12, h1: 24 };
+    const lay0 = mapLayout(400, 280, view);
+    const from = { x: 180, y: 140 };
+    const to = { x: 210, y: 120 };
+    const world = { p: lay0.fromP(from.x), h: lay0.fromH(from.y) };
+    const next = panMapView(view, 400, 280, from, to, bounds);
+    const lay1 = mapLayout(400, 280, next);
+    expect(lay1.fromP(to.x)).toBeCloseTo(world.p, 5);
+    expect(lay1.fromH(to.y)).toBeCloseTo(world.h, 5);
+    expect(next.p1 - next.p0).toBeCloseTo(view.p1 - view.p0);
+    expect(next.h1 - next.h0).toBeCloseTo(view.h1 - view.h0);
   });
 });
