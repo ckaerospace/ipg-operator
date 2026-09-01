@@ -13,6 +13,8 @@ import {
 import { ADVANCED_REF_IDS } from "../refs";
 import { LayerBar } from "./LayerBar";
 import { BugReportLink, RefsList } from "./RefsList";
+import { APP_VERSION, IS_BETA } from "../version";
+import { WHATS_NEW, WHATS_NEW_DATE } from "../whatsNew";
 
 const IPG6_PINJ = pinjLimits("IPG6-S");
 const IPG6_MDOT = mdotMgLimits("IPG6-S");
@@ -43,7 +45,13 @@ export function ModelPage() {
         <LayerBar current="manual" />
       </div>
       <article className="paper-body">
-        <h1>Plume model</h1>
+        <div className="model-title-row">
+          <h1>Plume model</h1>
+          <span className="model-ver">
+            v{APP_VERSION}
+            {IS_BETA ? <span className="model-beta">BETA</span> : null}
+          </span>
+        </div>
         <p className="lede">
           Operator note for Thesis and Advanced. Thesis and Advanced are the only solve-mode chips. Model is a page
           link (not a third solve chip). This page is not a solver. Chemistry is remote NASA CEA (Gordon &amp;
@@ -309,6 +317,20 @@ export function ModelPage() {
 
         <h2>9. References</h2>
         <RefsList ids={ADVANCED_REF_IDS} />
+        <section className="whats-new" aria-labelledby="whats-new-h">
+          <h2 id="whats-new-h">What&apos;s new</h2>
+          <p className="whats-new-meta">
+            v{APP_VERSION}
+            <span aria-hidden="true"> · </span>
+            {WHATS_NEW_DATE}
+          </p>
+          <ul>
+            {WHATS_NEW.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+
         <p className="paper-foot">
           Thesis and Advanced return to Setup. Plume (i) links here as Model. <BugReportLink />
         </p>
