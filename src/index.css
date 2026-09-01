@@ -413,6 +413,8 @@ select {
   flex: 0 0 auto;
   width: 100%;
   min-width: 0;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 .plume-wrap {
   position: relative;
@@ -435,6 +437,7 @@ select {
 .plume-wrap,
 .map-plot {
   touch-action: none;
+  overscroll-behavior: none;
 }
 .plume-wrap canvas,
 .map-plot canvas,
@@ -444,19 +447,47 @@ select {
   display: block;
   touch-action: none;
 }
-.plot-reset {
+.plot-phys {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 3;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 8px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+.plot-phys-chip {
+  pointer-events: auto;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
   border: 1px solid var(--line);
-  background: rgba(12, 18, 24, 0.86);
-  color: var(--teal);
-  font-size: 12px;
+  background: rgba(12, 18, 24, 0.82);
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.plot-phys-chip.on {
+  color: var(--teal);
+  border-color: var(--teal);
+  background: rgba(15, 63, 56, 0.92);
+}
+.plot-phys-chip:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.plot-phys-chip.disk {
+  color: #c9a000;
+  border-color: #c9a000;
+}
+.plot-phys-chip.disk.on {
+  color: #ffd000;
+  border-color: #ffd000;
+  background: rgba(48, 36, 4, 0.92);
 }
 
 .toolbar {
@@ -858,7 +889,6 @@ select {
   color: var(--muted);
   font-size: 13px;
 }
-
 .whats-new {
   margin-top: 1.6em;
   padding-top: 0.4em;
@@ -950,5 +980,8 @@ select {
   }
   .fields.three {
     grid-template-columns: 1fr 1fr 1fr;
+  }
+  .plume-wrap {
+    height: min(64vh, 520px);
   }
 }
