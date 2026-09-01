@@ -800,6 +800,35 @@ select {
   letter-spacing: 0.02em;
   margin: 0 0 10px;
 }
+.model-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.model-title-row h1 {
+  margin: 0;
+}
+.model-ver {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.model-beta {
+  margin-left: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  vertical-align: 1px;
+}
 .paper-body h2 {
   font-size: 1.05rem;
   margin: 1.4em 0 0.45em;
@@ -828,6 +857,25 @@ select {
   margin-top: 1.5em;
   color: var(--muted);
   font-size: 13px;
+}
+
+.whats-new {
+  margin-top: 1.6em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--line);
+}
+.whats-new h2 {
+  margin-top: 0.6em;
+}
+.whats-new-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 0.45em;
+  font-variant-numeric: tabular-nums;
+}
+.whats-new ul {
+  margin: 0;
+  font-size: 14px;
 }
 
 .map-plot {
