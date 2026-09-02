@@ -98,7 +98,8 @@ export function ModelPage() {
           Color is a bilinear sample of the selected field (T/T0, n/n0, h_tot, U, M, E) on the{" "}
           <span className="mono">nx</span>×<span className="mono">ny</span> grid. Isolines are marching squares of
           that same grid. Isoline levels are ~10–12 even 1–2–5 steps of the selected field in the current millimetre
-          window (equal log<sub>10</sub> when that window’s <i>hi</i>/<i>lo</i> ≥ 10). Pinch packs more curves in the
+          window (log decades if that window spans more than 10× — 1–2–5 × 10<sup>n</sup> per decade when <i>hi</i>/
+          <i>posLo</i> ≥ 10, not equal-Δlog<sub>10</sub>). Pinch packs more curves in the
           visible span of the same bilinear field — not a new CEA solve and not a scribble at the fitted view. The
           colorbar stays the full-field range. Changing the field chip, placing a station, or pinching is not a new CEA
           solve.
@@ -117,15 +118,19 @@ export function ModelPage() {
           <sub>inj</sub>–<i>h</i>
           <sub>inj</sub> figure pinches the same way. The hinj axis is the characteristics sweep{" "}
           <span className="mono">hinj_min</span>–<span className="mono">hinj_max</span> ({HINJ_MJ_MIN}–{HINJ_MJ_MAX}
-          &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). The pinj box is the Setup family clamp (IPG6-S 0–
+          &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). The Map pinj axis is <span className="mono">axesView</span>{" "}
+          <i>p</i>0: 0 to <span className="mono">pinjLimits(family).max</span> (IPG6-S 0–
           {pinjLimits("IPG6-S").max}&nbsp;Pa, IPG4 0–{pinjLimits("IPG4").max}&nbsp;Pa, IPG3 0–
-          {pinjLimits("IPG3").max}&nbsp;Pa) — not the API catalog clip 250/5000/3000. Extra ṁ and power isolines are
+          {pinjLimits("IPG3").max}&nbsp;Pa) — not the Setup slider clamp (§1 mins IPG6-S {IPG6_PINJ.min}, IPG4/IPG3{" "}
+          {IPG4_PINJ.min}) and not the API catalog clip 250/5000/3000. Extra ṁ and power isolines are
           1–2–5 traces of the same computed <i>k</i>(<i>h</i>)×<i>p</i>
           <sub>inj</sub> identity in the current Map window (~12–16 in that span; pinch fills the window, fitted
           density stays similar). This PWA does not invent <i>k</i> or a second characteristics call. Zoom-out cannot
           exceed that fitted box. Chamber <i>p</i>
-          <sub>inj</sub> is shown in Pa. If the wider hinj sweep fails, Map falls back to the previous characteristics
-          request and still uses the returned hinj axes. Labels reflow. The composition plot does not zoom.
+          <sub>inj</sub> is shown in Pa. If the wider hinj sweep fails, Map retries{" "}
+          <span className="mono">{"{ n_h: 13 }"}</span> without <span className="mono">hinj_min</span>/
+          <span className="mono">hinj_max</span> — not a stored previous characteristics request. Labels reflow. The
+          composition plot does not zoom.
         </p>
 
         <h2>4. Station</h2>
