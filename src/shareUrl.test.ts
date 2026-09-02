@@ -112,19 +112,26 @@ describe("share URL", () => {
     expect(parseShareSearch("?layer=thesis").run).toBeUndefined();
   });
 
-  it("ignores Custom facility and custom gas", () => {
-    expect(parseShareSearch("?facility=Custom&gas=custom&mix=He:0.7,O2:0.3").facility).toBeUndefined();
-    expect(parseShareSearch("?facility=Custom&gas=custom&mix=He:0.7,O2:0.3").gas).toBeUndefined();
-    expect(parseShareSearch("?facility=Custom&gas=custom&mix=He:0.7,O2:0.3").mix).toBeUndefined();
+  it("round-trips Custom facility and custom mole mix", () => {
+    const parsed = parseShareSearch("?facility=Custom&gas=custom&mix=He:0.7,O2:0.3");
+    expect(parsed.facility).toBe("Custom");
+    expect(parsed.gas).toBe("custom");
+    expect(parsed.mix).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 });
     const q = encodeShareSearch({
       ...fields,
       facility: "Custom",
       gas: "custom",
       customMix: { O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 },
     });
-    expect(q).toContain("facility=IPG6-S");
-    expect(q).toContain("gas=O2");
-    expect(q).not.toContain("mix=");
+    expect(q).toContain("facility=Custom");
+    expect(q).toContain("gas=custom");
+    expect(q).toContain("mix=O2%3A0.3%2CHe%3A0.7");
+    expect(q).toContain("layer=thesis");
+    expect(q).toContain("plume=collisionless");
+    expect(q).not.toContain("ptank=");
+    expect(q).not.toMatch(/(?:^|&)dc=/);
+    expect(q).not.toMatch(/(?:^|&)dt=/);
+    expect(q).not.toMatch(/(?:^|&)de=/);
   });
 
   it("restores the station from probe_x / probe_y and never a plate", () => {

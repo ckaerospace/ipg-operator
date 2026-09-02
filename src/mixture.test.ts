@@ -85,5 +85,21 @@ describe("preset mixtures", () => {
     expect(seeded).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 });
     expect(resolveMixture("custom", seeded)).toEqual({ O2: 0.3, He: 0.7 });
     expect(mixLabel({ O2: 0.3, He: 0.7 })).toBe("O2 0.30 · He 0.70");
+    const body = buildSolveBody({
+      ...solveBase,
+      d_c_mm: 40,
+      d_t_mm: 50,
+      d_e_mm: 60,
+      nozzle_name: "custom",
+      mixture: resolveMixture("custom", seeded)!,
+    });
+    expect(body.mixture).toEqual({ O2: 0.3, He: 0.7 });
+    expect(body.d_c_mm).toBe(40);
+    expect(body.d_t_mm).toBe(50);
+    expect(body.d_e_mm).toBe(60);
+    expect(body.nozzle_name).toBe("custom");
+    expect(body.plume_mode).toBe("collisionless");
+    expect(body.nx).toBe(97);
+    expect(body.ny).toBe(97);
   });
 });

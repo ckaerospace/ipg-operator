@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  axisFamily,
   clampHinj,
   coerceOperatingPoint,
+  geometryOf,
   HINJ_MJ_MAX,
   HINJ_MJ_MIN,
   KNOWN_POINTS,
@@ -41,5 +43,23 @@ describe("family editor clamps", () => {
     expect(clampHinj(30)).toBe(30);
     expect(clampHinj(0)).toBe(1);
     expect(clampHinj(80)).toBe(70);
+  });
+
+  it("Custom IPG posts editor diameters and nozzle_name custom", () => {
+    expect(geometryOf("Custom", { dc: 40, dt: 50, de: 60 })).toEqual({
+      d_c_mm: 40,
+      d_t_mm: 50,
+      d_e_mm: 60,
+      nozzle_name: "custom",
+    });
+    expect(geometryOf("IPG6-S", { dc: 40, dt: 50, de: 60 })).toEqual({
+      d_c_mm: 37,
+      d_t_mm: 20,
+      d_e_mm: 40,
+      nozzle_name: "IPG6-S",
+    });
+    expect(axisFamily("Custom", 70)).toBe("IPG3");
+    expect(axisFamily("Custom", 45)).toBe("IPG4");
+    expect(axisFamily("Custom", 20)).toBe("IPG6-S");
   });
 });

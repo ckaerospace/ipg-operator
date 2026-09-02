@@ -18,6 +18,7 @@ import {
   pinjLimits,
 } from "./facility";
 import {
+  emptyCustomMix,
   encodeMixParam,
   isNamedGas,
   mixLabel,
@@ -84,18 +85,19 @@ function readBoot(): Boot {
   const share = parseShareSearch(typeof window === "undefined" ? "" : window.location.search);
   writeLayer("thesis");
   const layer = "thesis" as const;
-  const facility: FacilityId =
-    share.facility && share.facility !== "Custom" ? share.facility : "IPG6-S";
+  const facility: FacilityId = share.facility ?? "IPG6-S";
   const d = defaultPoint(facility);
   const meta = FACILITY_META[facility];
   const family = axisFamily(facility, meta.dt);
   const coerced = coerceOperatingPoint(family, share.pinj ?? d.pinj, share.mdot ?? d.mdot_mg_s);
   const obj = hydrateShareObject(layer, share);
-  const gas: GasId = share.gas && isNamedGas(share.gas) ? share.gas : d.gas;
+  const named = share.gas && isNamedGas(share.gas) ? share.gas : d.gas;
+  const gas: GasId = share.gas === "custom" ? "custom" : named;
   return {
     facility,
     gas,
-    customMix: seedCustomMix(mixtureFor(gas)),
+    customMix:
+      share.gas === "custom" ? (share.mix ?? emptyCustomMix()) : seedCustomMix(mixtureFor(named)),
     custom: { dc: meta.dc, dt: meta.dt, de: meta.de },
     mode: share.mode ?? "generator",
     plumeMode: "collisionless",
@@ -158,15 +160,16 @@ export default function App() {
   const mLim = mdotMgLimits(family);
 
   const applyFacility = (id: FacilityId) => {
-    if (id === "Custom") return;
     setFacility(id);
     const d = defaultPoint(id);
-    if (gas !== "custom") setGas(d.gas);
+    if (gas !== "custom" && id !== "Custom") setGas(d.gas);
     setPinj(d.pinj);
     setMdotMg(d.mdot_mg_s);
     setHinj(clampHinj(d.hinj));
-    const m = FACILITY_META[id];
-    setCustom({ dc: m.dc, dt: m.dt, de: m.de });
+    if (id !== "Custom") {
+      const m = FACILITY_META[id];
+      setCustom({ dc: m.dc, dt: m.dt, de: m.de });
+    }
   };
 
   const applyKnown = (id: string) => {
@@ -184,7 +187,7 @@ export default function App() {
   const activeMixture = resolveMixture(gas, customMix);
 
   const selectGas = (id: GasId) => {
-    if (!isNamedGas(id)) return;
+    if (id === "custom" && isNamedGas(gas)) setCustomMix(seedCustomMix(mixtureFor(gas)));
     setGas(id);
   };
 

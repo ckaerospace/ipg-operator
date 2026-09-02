@@ -1,4 +1,5 @@
 import type { CustomMix } from "./mixture";
+import { emptyCustomMix, encodeMixParam, parseMixParam } from "./mixture";
 import {
   clampDiskRmm,
   clampDiskXm,
@@ -44,6 +45,7 @@ export type ShareFields = {
 };
 
 const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
+const GASES: GasId[] = [...NAMED_GASES, "custom"];
 const MODES: SolveMode[] = ["generator", "enthalpy"];
 const PLUMES: PlumeMode[] = ["auto", "collisionless", "sudden_freeze"];
 const OBJECTS: JetObject[] = ["none", "disk"];
@@ -67,9 +69,13 @@ export function parseShareSearch(search: string): SharePoint {
   const layer = q.get("layer");
   if (layer === "thesis" || layer === "advanced" || layer === "manual") out.layer = "thesis";
   const facility = pick(q.get("facility"), FACILITIES);
-  if (facility && facility !== "Custom") out.facility = facility;
-  const gas = pick(q.get("gas"), NAMED_GASES);
+  if (facility) out.facility = facility;
+  const gas = pick(q.get("gas"), GASES);
   if (gas) out.gas = gas;
+  if (gas === "custom") {
+    const mix = parseMixParam(q.get("mix"));
+    if (mix) out.mix = mix;
+  }
   const mode = pick(q.get("mode"), MODES);
   if (mode) out.mode = mode;
   const plume = pick(q.get("plume"), PLUMES);
@@ -98,10 +104,12 @@ export function parseShareSearch(search: string): SharePoint {
 export function encodeShareSearch(fields: ShareFields): string {
   const q = new URLSearchParams();
   q.set("layer", "thesis");
-  const facility = fields.facility === "Custom" ? "IPG6-S" : fields.facility;
-  q.set("facility", facility);
-  const gas = fields.gas === "custom" ? "O2" : fields.gas;
-  q.set("gas", gas);
+  q.set("facility", fields.facility);
+  q.set("gas", fields.gas);
+  if (fields.gas === "custom") {
+    const mix = encodeMixParam(fields.customMix ?? emptyCustomMix());
+    if (mix) q.set("mix", mix);
+  }
   q.set("mode", fields.mode);
   q.set("pinj", String(fields.pinj));
   if (fields.mode === "generator") q.set("mdot", String(fields.mdot_mg_s));

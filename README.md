@@ -37,7 +37,7 @@ Copy `.env` or export `VITE_API` before `npm run dev`. Endpoints used:
 
 The live public PWA is Thesis-only:
 
-- **Setup / Plume / Map** — always `plume_mode: collisionless`. No tank pressure, NPR, Object Probe, custom gas, Custom nozzle, sudden-freeze, or Mach-disk overlay. Plume is a full (upper and lower) bilinear color map of the selected field (T/T0, n/n0, h_tot, U, M, E) with ~10–12 isolines of the selected field in the current millimetre window (log decades if that window is >10×; pinch packs more 1–2–5 of the same grid).
+- **Setup / Plume / Map** — always `plume_mode: collisionless`. No tank pressure, NPR, Object Probe, sudden-freeze, or Mach-disk overlay. Custom generator (Dc/Dt/De) and custom gas mixture stay on Setup. Plume is a full (upper and lower) bilinear color map of the selected field (T/T0, n/n0, h_tot, U, M, E) with ~10–12 isolines of the selected field in the current millimetre window (log decades if that window is >10×; pinch packs more 1–2–5 of the same grid).
 - **Model** — scientific note at `/model` (not a solver). URL/state stays `layer=manual` on that page. Model is an underlined page link, not a solve-mode chip, and is also linked from Plume (i).
 
 Header chrome is `Plasma wind tunnel · {generator}` (for example `Plasma wind tunnel · IPG6-S`). After a solve the top strip shows hinj, n0 (frozen CEA exit number density), coupled power (ṁ × hinj, key `power` — not pressure), T_exit, U, mole fractions, then ṁ. It does not show chamber pinj.
@@ -51,10 +51,10 @@ The Plume figure is full phone width and a fixed height (`min(48vh, 340px)`). Th
 **Copy link** on Setup encodes the current point:
 
 ```
-https://ipg-operator.onrender.com/?layer=thesis&facility=IPG4&gas=CO2&mode=generator|enthalpy&pinj=&mdot=&hinj=&plume=collisionless&probe_x=&probe_y=
+https://ipg-operator.onrender.com/?layer=thesis&facility=IPG4|Custom&gas=CO2|custom&mix=&mode=generator|enthalpy&pinj=&mdot=&hinj=&plume=collisionless&probe_x=&probe_y=
 ```
 
-The `facility` query key is the selected generator (IPG3 / IPG4 / IPG6-S). Named gases stay `gas=O2` (etc.). Opening that URL applies the fields and does not auto-Run unless `run=1`. `mdot` is mg/s (same as the API). `probe_x` and `probe_y` are the station in metres. Advanced query keys (`layer=advanced`, `ptank`, `object`, `probe_r`, `gas=custom`, `facility=Custom`) are ignored.
+The `facility` query key is the selected generator (IPG3 / IPG4 / IPG6-S / Custom). Named gases stay `gas=O2` (etc.). Custom gas is `gas=custom&mix=O2:0.3,He:0.7` (positive fractions only). Custom Dc/Dt/De millimetres are not in the URL; opening `facility=Custom` uses `FACILITY_META.Custom` (37 / 20 / 40 mm). Opening that URL applies the fields and does not auto-Run unless `run=1`. `mdot` is mg/s (same as the API). `probe_x` and `probe_y` are the station in metres. Advanced query keys (`layer=advanced`, `ptank`, `object`, `probe_r`) are ignored.
 
 If the API is asleep, the chrome stays up and the content pane shows **waking chemistry server**.
 
@@ -62,6 +62,7 @@ If the API is asleep, the chrome stays up and the content pane shows **waking ch
 
 - IPG6-S: ṁ in **mg/s**, pinj tens to hundreds of Pa, power in W
 - IPG3 / IPG4: UI shows ṁ in **g/s**; the request still sends `mdot_mg_s`
+- Custom generator: Dt ≥ 70 mm → IPG3-like ṁ/pinj family; ≥ 45 mm → IPG4-like; else IPG6-S. Diameters 1–499 mm. Empty numeric drafts revert on blur and do not become 0.
 
 `hinj` is local/CEA specific enthalpy, not a cavity-calorimeter bulk measurement. IPG3 has no throat; recovered ṁ is approximate.
 

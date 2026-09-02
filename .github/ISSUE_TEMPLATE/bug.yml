@@ -27,6 +27,7 @@ body:
         - IPG6-S
         - IPG4
         - IPG3
+        - Custom
     validations:
       required: true
 
@@ -41,6 +42,7 @@ body:
         - Air
         - HeO2
         - Ar
+        - custom
     validations:
       required: true
 
