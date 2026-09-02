@@ -11,10 +11,11 @@ import {
   type MapView,
 } from "../canvas/map";
 import { viewsClose } from "../canvas/viewZoom";
-import type { AxisFamily } from "../facility";
+import { usesGrams, type AxisFamily } from "../facility";
 import { fmtMdot, fmtPinjPa, fmtPower, moleLabel } from "../format";
 import { cssPoint, pairStats, PlotTouch, wheelScale } from "../gestures/plotTouch";
 import type { CharacteristicsResponse } from "../types";
+import { DraftNumber } from "./DraftNumber";
 
 type Props = {
   visible: boolean;
@@ -24,8 +25,13 @@ type Props = {
   ch: CharacteristicsResponse | null;
   family: AxisFamily;
   facility: string;
-  initialPinj: number;
-  initialHinj: number;
+  pinj: number;
+  hinj: number;
+  mdot_mg_s: number;
+  pinjLim: { min: number; max: number; step: number };
+  mdotLim: { min: number; max: number };
+  onPinj: (v: number) => void;
+  onMdot: (mg: number) => void;
   onRunPoint: (pinj: number, hinj: number) => void;
 };
 
@@ -37,8 +43,13 @@ export function MapTab({
   ch,
   family,
   facility,
-  initialPinj,
-  initialHinj,
+  pinj,
+  hinj,
+  mdot_mg_s,
+  pinjLim,
+  mdotLim,
+  onPinj,
+  onMdot,
   onRunPoint,
 }: Props) {
   const plotRef = useRef<HTMLCanvasElement>(null);
@@ -51,9 +62,14 @@ export function MapTab({
   const pinchView = useRef<MapView | null>(null);
   const touch = useRef(new PlotTouch());
   const paintRef = useRef<() => void>(() => {});
-  const [cursor, setCursor] = useState({ pinj: initialPinj, hinj: initialHinj });
+  const [cursor, setCursor] = useState({ pinj, hinj });
   const [zoomed, setZoomed] = useState(false);
   const cursorRef = useRef(cursor);
+  const syncedOp = useRef({ pinj, hinj });
+  if (syncedOp.current.pinj !== pinj || syncedOp.current.hinj !== hinj) {
+    syncedOp.current = { pinj, hinj };
+    setCursor({ pinj, hinj });
+  }
 
   useEffect(() => {
     cursorRef.current = cursor;
@@ -235,12 +251,13 @@ export function MapTab({
 
   const readout = ch ? mapReadout(ch, cursor.pinj, cursor.hinj) : null;
   const majors = readout?.xs.filter((s) => s.x >= 0.02).slice(0, 4) ?? [];
+  const grams = usesGrams(family);
 
   if (status === "updating") {
     return (
       <div className="center-msg">
         Map updating
-        <div>Keep ṁ and pinj on Setup. Characteristics are not available from this server yet.</div>
+        <div>Characteristics are not available from this server yet.</div>
       </div>
     );
   }
@@ -284,6 +301,34 @@ export function MapTab({
           </button>
         )}
       </div>
+      <div className="map-point probe-grid">
+        <MapDraft
+          l="ṁ"
+          value={grams ? mdot_mg_s / 1000 : mdot_mg_s}
+          min={grams ? mdotLim.min / 1000 : mdotLim.min}
+          max={grams ? mdotLim.max / 1000 : mdotLim.max}
+          step={grams ? 0.01 : 0.1}
+          format={(n) => (grams ? n.toFixed(2) : n >= 10 ? n.toFixed(1) : n.toFixed(2))}
+          unit={grams ? "g/s" : "mg/s"}
+          ariaLabel="mass flow"
+          onCommit={(n) => onMdot(grams ? n * 1000 : n)}
+        />
+        <MapDraft
+          l="pinj"
+          value={pinj}
+          min={pinjLim.min}
+          max={pinjLim.max}
+          step={pinjLim.step}
+          format={(n) => (Math.abs(n) >= 100 ? String(Math.round(n)) : n.toFixed(1).replace(/\.0$/, ""))}
+          unit="Pa"
+          ariaLabel="chamber injection pressure pascal"
+          onCommit={(n) => {
+            syncedOp.current = { pinj: n, hinj };
+            onPinj(n);
+            setCursor({ pinj: n, hinj });
+          }}
+        />
+      </div>
       <div className="map-read">
         {fmtPinjPa(cursor.pinj)} · {cursor.hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
         {fmtPower(readout?.power_W ?? 0)}
@@ -297,5 +342,45 @@ export function MapTab({
         <button onClick={() => onRunPoint(cursor.pinj, cursor.hinj)}>Run this point</button>
       </div>
     </>
+  );
+}
+
+function MapDraft({
+  l,
+  value,
+  min,
+  max,
+  step,
+  format,
+  unit,
+  ariaLabel,
+  onCommit,
+}: {
+  l: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (n: number) => string;
+  unit: string;
+  ariaLabel: string;
+  onCommit: (n: number) => void;
+}) {
+  return (
+    <div className="cell">
+      <div className="l">{l}</div>
+      <div className="v cell-edit">
+        <DraftNumber
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          format={format}
+          aria-label={ariaLabel}
+          onCommit={onCommit}
+        />
+        <span className="cell-unit">{unit}</span>
+      </div>
+    </div>
   );
 }

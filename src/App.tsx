@@ -39,6 +39,7 @@ import {
   PROBE_TW_K,
   TANK_SOLVE_DEBOUNCE_MS,
 } from "./physics";
+import { mapCharacteristicsKey } from "./mapCache";
 import { hydrateShareObject, parseShareSearch, shareUrl } from "./shareUrl";
 import { buildSolveBody } from "./solveBody";
 import type {
@@ -297,56 +298,76 @@ export default function App() {
     void runSolve();
   }, [boot.autoRun, boot.gas, boot.customMix, runSolve]);
 
+  const mapLoadGen = useRef(0);
+  const loadMap = useCallback(
+    (mdotForKey: number) => {
+      const mix = resolveMixture(gas, customMix);
+      const mixKey = gas === "custom" ? encodeMixParam(customMix) : gas;
+      const key = mapCharacteristicsKey({
+        facility,
+        mixKey,
+        d_c_mm: geom.d_c_mm,
+        d_t_mm: geom.d_t_mm,
+        d_e_mm: geom.d_e_mm,
+        mdot_mg_s: mdotForKey,
+      });
+      if (!mix) {
+        setMapStatus("error");
+        setMapErr("Enter at least one mole fraction.");
+        return;
+      }
+      if (mapKey === key && ch) {
+        setMapStatus("ready");
+        return;
+      }
+      const gen = ++mapLoadGen.current;
+      setMapStatus("loading");
+      setMapWake(false);
+      setMapErr(null);
+      const charBase = {
+        pinj_ref_Pa: pinj,
+        mixture: mix,
+        basis: "mole" as const,
+        d_c_mm: geom.d_c_mm,
+        d_t_mm: geom.d_t_mm,
+        d_e_mm: geom.d_e_mm,
+        nozzle_name: geom.nozzle_name,
+      };
+      const wake = () => setMapWake(true);
+      postCharacteristics({ ...charBase, n_h: 29, hinj_min: HINJ_MJ_MIN, hinj_max: HINJ_MJ_MAX }, wake)
+        .catch((e: unknown) => {
+          const status = e instanceof ApiError ? e.status : 0;
+          if (status === 404 || status === 405) throw e;
+          return postCharacteristics({ ...charBase, n_h: 13 }, wake);
+        })
+        .then((data) => {
+          if (gen !== mapLoadGen.current) return;
+          setCh(data);
+          setMapKey(key);
+          setMapStatus("ready");
+        })
+        .catch((e: unknown) => {
+          if (gen !== mapLoadGen.current) return;
+          const status = e instanceof ApiError ? e.status : 0;
+          if (status === 404 || status === 405) {
+            setMapStatus("updating");
+            setMapErr(null);
+          } else {
+            setMapStatus("error");
+            setMapErr(e instanceof Error ? e.message : "Map failed");
+          }
+        })
+        .finally(() => {
+          if (gen === mapLoadGen.current) setMapWake(false);
+        });
+    },
+    [facility, gas, customMix, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, pinj, mapKey, ch],
+  );
+
   const openMap = (next: TabId) => {
     setTab(next);
     if (next !== "map") return;
-    const mix = resolveMixture(gas, customMix);
-    const mixKey = gas === "custom" ? encodeMixParam(customMix) : gas;
-    const key = `${facility}|${mixKey}|${geom.d_c_mm}|${geom.d_t_mm}|${geom.d_e_mm}|${Math.round(pinj)}|h${HINJ_MJ_MIN}-${HINJ_MJ_MAX}|n29`;
-    if (!mix) {
-      setMapStatus("error");
-      setMapErr("Enter at least one mole fraction.");
-      return;
-    }
-    if (mapKey === key && ch) {
-      setMapStatus("ready");
-      return;
-    }
-    setMapStatus("loading");
-    setMapWake(false);
-    setMapErr(null);
-    const charBase = {
-      pinj_ref_Pa: pinj,
-      mixture: mix,
-      basis: "mole" as const,
-      d_c_mm: geom.d_c_mm,
-      d_t_mm: geom.d_t_mm,
-      d_e_mm: geom.d_e_mm,
-      nozzle_name: geom.nozzle_name,
-    };
-    const wake = () => setMapWake(true);
-    postCharacteristics({ ...charBase, n_h: 29, hinj_min: HINJ_MJ_MIN, hinj_max: HINJ_MJ_MAX }, wake)
-      .catch((e: unknown) => {
-        const status = e instanceof ApiError ? e.status : 0;
-        if (status === 404 || status === 405) throw e;
-        return postCharacteristics({ ...charBase, n_h: 13 }, wake);
-      })
-      .then((data) => {
-        setCh(data);
-        setMapKey(key);
-        setMapStatus("ready");
-      })
-      .catch((e: unknown) => {
-        const status = e instanceof ApiError ? e.status : 0;
-        if (status === 404 || status === 405) {
-          setMapStatus("updating");
-          setMapErr(null);
-        } else {
-          setMapStatus("error");
-          setMapErr(e instanceof Error ? e.message : "Map failed");
-        }
-      })
-      .finally(() => setMapWake(false));
+    loadMap(mdotMg);
   };
 
   const heading = `Plasma wind tunnel · ${facility}`;
@@ -489,8 +510,16 @@ export default function App() {
             ch={ch}
             family={family}
             facility={facility}
-            initialPinj={pinj}
-            initialHinj={hinj}
+            pinj={pinj}
+            hinj={hinj}
+            mdot_mg_s={mdotMg}
+            pinjLim={pLim}
+            mdotLim={mLim}
+            onPinj={setPinj}
+            onMdot={(m) => {
+              setMdotMg(m);
+              loadMap(m);
+            }}
             onRunPoint={(p, h) => {
               clearTankDebounce();
               setMode("enthalpy");
