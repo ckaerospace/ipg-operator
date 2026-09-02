@@ -69,8 +69,9 @@ export function ModelPage() {
           mode inverts ṁ + <i>p</i>
           <sub>inj</sub> for a consistent <i>h</i>
           <sub>inj</sub>; assigned-enthalpy mode uses the typed <i>h</i>
-          <sub>inj</sub>. Every solve posts a 49×49 plume grid (<span className="mono">nx</span>,{" "}
-          <span className="mono">ny</span>).
+          <sub>inj</sub>. Every solve posts a 97×97 plume grid (<span className="mono">nx</span>,{" "}
+          <span className="mono">ny</span>; odd, so <i>y</i> = 0 is a node). Color map and isolines sample that same
+          grid (bilinear / marching squares, no spline).
         </p>
         <p>
           Station 4 is frozen: <b>T0 is the nozzle-exit translational temperature, not the chamber temperature</b>. U0

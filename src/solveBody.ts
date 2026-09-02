@@ -2,8 +2,9 @@ import type { SolveBody } from "./api";
 import type { AppLayer } from "./layer";
 import type { Mixture, PlumeMode, SolveMode } from "./types";
 
-export const SOLVE_NX = 49;
-export const SOLVE_NY = 49;
+/** Odd so y = 0 is a grid node. Color map and isolines use this same returned grid (bilinear, no spline). */
+export const SOLVE_NX = 97;
+export const SOLVE_NY = 97;
 
 export type SolveInput = {
   layer: AppLayer;
