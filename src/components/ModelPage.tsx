@@ -44,8 +44,14 @@ export function ModelPage() {
 
         <h2>1. What the operator sets</h2>
         <p>
-          Generator (IPG6-S, IPG4, or IPG3) and a named gas fix the nozzle and the mixture sent to CEA. Named gases are
-          O2, CO2, N2, Air, HeO2, and Ar.
+          Generator (IPG6-S, IPG4, IPG3, or Custom Dc / Dt / De) and gas fix the nozzle and the mixture sent to CEA.
+          Named gases are O2, CO2, N2, Air, HeO2, and Ar. Custom gas is a mole mix of O2, N2, CO2, He, and Ar — not a
+          new solver. H2 and CH4 are not in the phone editor. Custom diameters are 1–499&nbsp;mm; empty numeric drafts
+          revert on blur and do not become 0. Custom Dt picks the ṁ / pinj family: ≥70&nbsp;mm IPG3-like, ≥45&nbsp;mm
+          IPG4-like, else IPG6-S. Custom IPG posts the same <span className="mono">d_c_mm</span> /{" "}
+          <span className="mono">d_t_mm</span> / <span className="mono">d_e_mm</span> and{" "}
+          <span className="mono">nozzle_name: &quot;custom&quot;</span> as the named generators’ geometry fields. Custom
+          mix is the same CEA <span className="mono">mixture</span> object as a named gas.
         </p>
         <p>
           A point is chamber pressure <i>p</i>
@@ -161,6 +167,12 @@ export function ModelPage() {
             <i>h</i>
             <sub>inj</sub> is local/CEA, not cavity-calorimeter bulk.
           </li>
+          <li>Custom gas has no H2 or CH4. Positive mole fractions normalize to 1 on Run; zeros are omitted.</li>
+          <li>
+            No Advanced chip, Object Probe, tank pressure, Freeze, Disk, or Collisionless / Auto / Sudden freeze
+            switch. Every solve still posts <span className="mono">plume_mode: &quot;collisionless&quot;</span> and
+            omits <span className="mono">p_tank_Pa</span> and probe fields.
+          </li>
         </ul>
 
         <h2>6. Copy link</h2>
@@ -169,9 +181,13 @@ export function ModelPage() {
           . <span className="mono">layer</span> is <span className="mono">thesis</span> and{" "}
           <span className="mono">plume</span> is <span className="mono">collisionless</span>.{" "}
           <span className="mono">mdot</span> only in generator mode; <span className="mono">hinj</span> only in
-          enthalpy mode. <span className="mono">probe_x</span> and <span className="mono">probe_y</span> (metres) when
-          a station is placed. Opening that URL applies the fields and does not auto-Run unless{" "}
-          <span className="mono">run=1</span>.
+          enthalpy mode. <span className="mono">mix</span> only for custom gas.{" "}
+          <span className="mono">facility=Custom</span> selects Custom IPG; Dc / Dt / De millimetres are not in the
+          URL. Opening that Custom link uses <span className="mono">FACILITY_META.Custom</span> diameters (37 / 20 /
+          40&nbsp;mm), not the session that produced the link. Named IPG diameters are not in the URL either; they
+          come from the table. <span className="mono">probe_x</span> and{" "}
+          <span className="mono">probe_y</span> (metres) when a station is placed. Opening that URL applies the fields
+          and does not auto-Run unless <span className="mono">run=1</span>.
         </p>
 
         <h2>7. References</h2>

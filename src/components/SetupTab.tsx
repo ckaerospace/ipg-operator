@@ -9,12 +9,13 @@ import {
   KNOWN_POINTS,
   type AxisFamily,
 } from "../facility";
-import { fmtMdot, fmtPinjPa } from "../format";
+import { fmtFixed, fmtMdot, fmtPinjPa } from "../format";
 import type { AppLayer } from "../layer";
-import type { CustomMix } from "../mixture";
+import { CUSTOM_SPECIES, mixtureSum, type CustomMix } from "../mixture";
 import { PINJ_SLIDER_STEPS, pinjPaToSlider, sliderToPinjPa } from "../physics";
 import { copyText } from "../shareUrl";
 import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "../types";
+import { DraftNumber } from "./DraftNumber";
 import { LayerBar } from "./LayerBar";
 
 type Props = {
@@ -57,7 +58,7 @@ type Props = {
   shareHref: string;
 };
 
-const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3"];
+const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
 
 export function SetupTab(p: Props) {
   const grams = p.family !== "IPG6-S";
@@ -80,29 +81,53 @@ export function SetupTab(p: Props) {
         ))}
       </div>
 
-      <div className="card" style={{ marginTop: 12 }}>
-        <div className="title">{meta.label}</div>
-        <div className="geo">
-          <div>
-            <span>Dc</span> {meta.dc} mm
-          </div>
-          <div>
-            <span>Dt</span> {meta.dt} mm
-          </div>
-          <div>
-            <span>De</span> {meta.de} mm
-          </div>
-          <div>
-            <span>nozzle</span> {meta.nozzle}
-          </div>
-          <div>
-            <span>ṁ</span> {meta.label === "IPG6-S" ? "mg/s" : "g/s"}
-          </div>
-          <div>
-            <span>default gas</span> {meta.defaultGas}
+      {p.facility !== "Custom" ? (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="title">{meta.label}</div>
+          <div className="geo">
+            <div>
+              <span>Dc</span> {meta.dc} mm
+            </div>
+            <div>
+              <span>Dt</span> {meta.dt} mm
+            </div>
+            <div>
+              <span>De</span> {meta.de} mm
+            </div>
+            <div>
+              <span>nozzle</span> {meta.nozzle}
+            </div>
+            <div>
+              <span>ṁ</span> {meta.label === "IPG6-S" ? "mg/s" : "g/s"}
+            </div>
+            <div>
+              <span>default gas</span> {meta.defaultGas}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="fields three" style={{ marginTop: 12 }}>
+          {(
+            [
+              ["Dc mm", "dc", p.custom.dc],
+              ["Dt mm", "dt", p.custom.dt],
+              ["De mm", "de", p.custom.de],
+            ] as const
+          ).map(([lab, key, val]) => (
+            <label className="field" key={key}>
+              {lab}
+              <DraftNumber
+                value={val}
+                min={1}
+                max={499}
+                step={0.5}
+                aria-label={lab}
+                onCommit={(n) => p.onCustom({ [key]: n })}
+              />
+            </label>
+          ))}
+        </div>
+      )}
 
       <div className="h-label">Gas</div>
       <div className="chips">
@@ -111,7 +136,11 @@ export function SetupTab(p: Props) {
             {g.label}
           </button>
         ))}
+        <button className={`chip${p.gas === "custom" ? " on" : ""}`} onClick={() => p.onGas("custom")}>
+          Custom
+        </button>
       </div>
+      {p.gas === "custom" && <MixEditor mix={p.customMix} onChange={p.onCustomMix} />}
 
       <div className="h-label">Generator setup</div>
       <div className="chips" style={{ marginBottom: 10 }}>
@@ -196,6 +225,33 @@ export function SetupTab(p: Props) {
       <div className="share-row">
         <CopyLink href={p.shareHref} />
       </div>
+    </div>
+  );
+}
+
+function MixEditor({ mix, onChange }: { mix: CustomMix; onChange: (mix: CustomMix) => void }) {
+  const sum = mixtureSum(mix);
+  return (
+    <div className="mix-editor">
+      <div className="mix-grid">
+        {CUSTOM_SPECIES.map((s) => (
+          <label className="field" key={s}>
+            {s}
+            <DraftNumber
+              value={mix[s]}
+              min={0}
+              max={1}
+              step={0.01}
+              aria-label={`${s} mole fraction`}
+              onCommit={(n) => onChange({ ...mix, [s]: n })}
+            />
+          </label>
+        ))}
+      </div>
+      <div className={`mix-sum${sum <= 0 ? " bad" : ""}`}>
+        {sum <= 0 ? "Enter at least one mole fraction." : `Σ ${fmtFixed(sum, 3)} · mole fraction (0–1)`}
+      </div>
+      <p className="field-hint">Positive fractions normalize to 1 on Run. Zeros are omitted.</p>
     </div>
   );
 }
