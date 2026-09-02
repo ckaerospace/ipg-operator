@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop Plume plot is taller (`min(64vh, 520px)`); phone height is unchanged.
 - Map: typed ṁ and pinj (same DraftNumber rules as Plume x/y) are the Setup values, not a second copy. Changing pinj moves the operating-point marker; hinj stays the Setup value. Changing ṁ rebuilds the characteristics map. ṁ is not a Map axis.
 
+### Changed
+
+- Plume field is 97×97 (odd, so y=0 is a grid node). Colormap and marching-square isolines use that same posted grid; isolines are not splined. Map CEA `n_h` is unchanged.
+
 ### Fixed
 
 - Map operating-point crosshair is the exact Setup pinj and hinj in linear plot space. It does not snap to a CEA sample node or sit on a leftover tap cursor. ṁ/power/mole readout still interpolates from the hinj column.

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { HINJ_MJ_MAX, HINJ_MJ_MIN, mdotMgLimits, pinjLimits } from "../facility";
+import { SOLVE_NX, SOLVE_NY } from "../solveBody";
 import { goLayer } from "../layer";
 import { MACH_DISK_LABEL, SHOCK_OVERLAY_CAPTION } from "../canvas/plume";
 import {
@@ -96,8 +97,9 @@ export function ModelPage() {
           mode inverts ṁ + <i>p</i>
           <sub>inj</sub> for a consistent <i>h</i>
           <sub>inj</sub>; assigned-enthalpy mode uses the typed <i>h</i>
-          <sub>inj</sub>. Every solve posts a 49×49 plume grid (<span className="mono">nx</span>,{" "}
-          <span className="mono">ny</span>).
+          <sub>inj</sub>. Every solve posts a {SOLVE_NX}×{SOLVE_NY} plume grid (<span className="mono">nx</span>,{" "}
+          <span className="mono">ny</span> — odd, so centerline <i>y</i> = 0 is a grid node). Color and isolines are
+          marching squares of that same field, not a spline.
         </p>
         <p>
           Station 4 is frozen: <b>T0 is the nozzle-exit translational temperature, not the chamber temperature</b>. U0

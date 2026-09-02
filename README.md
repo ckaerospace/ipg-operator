@@ -32,7 +32,7 @@ Copy `.env` or export `VITE_API` before `npm run dev`. Endpoints used:
 
 - `GET /api/health` — liveness (cold start on the free host can take ~30 s)
 - `GET /api/catalog` — generators and gases (geometry is also baked into the Setup card)
-- `POST /api/solve` — generator (pinj + ṁ → hinj) or enthalpy (pinj + hinj) plus plume grid. Optional `p_tank_Pa` (default 10) is the tank / background pressure
+- `POST /api/solve` — generator (pinj + ṁ → hinj) or enthalpy (pinj + hinj) plus a 97×97 plume grid (`nx`, `ny`; odd so y=0 is a node). Optional `p_tank_Pa` (default 10) is the tank / background pressure
 - `POST /api/characteristics` — ṁ / power isolines, kinks, chamber composition (`n_h = 29`, `hinj_min`/`hinj_max` 1–70; falls back to `n_h = 13` without those keys if the wider sweep fails)
 
 Three layers (persisted in `localStorage` as `ipg-layer`):

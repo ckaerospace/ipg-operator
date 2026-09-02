@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_LAYER, LAYER_LABEL, operatorLayer, parseLayer } from "./layer";
 import { BUG_REPORT_URL, routeForPath } from "./routes";
-import { buildSolveBody, solveBodyJson } from "./solveBody";
+import { buildSolveBody, SOLVE_NX, SOLVE_NY, solveBodyJson } from "./solveBody";
 import type { SolveInput } from "./solveBody";
 
 const base: SolveInput = {
@@ -38,6 +38,16 @@ describe("layers", () => {
 });
 
 describe("solve body", () => {
+  it("posts an odd 97×97 plume field so y=0 can sit on a grid node", () => {
+    expect(SOLVE_NX).toBe(97);
+    expect(SOLVE_NY).toBe(97);
+    expect(SOLVE_NX % 2).toBe(1);
+    expect(SOLVE_NY % 2).toBe(1);
+    const json = solveBodyJson(base);
+    expect(json.nx).toBe(97);
+    expect(json.ny).toBe(97);
+  });
+
   it("Thesis always posts collisionless and omits p_tank_Pa", () => {
     for (const plumeMode of ["auto", "collisionless", "sudden_freeze"] as const) {
       const json = solveBodyJson({ ...base, layer: "thesis", plumeMode, p_tank_Pa: 25 });

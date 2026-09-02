@@ -4,8 +4,9 @@ import { operatorLayer } from "./layer";
 import { clampDiskRmm, clampDiskXm, clampProbeTw, clampTankPa, PROBE_TW_K } from "./physics";
 import type { Mixture, PlumeMode, SolveMode } from "./types";
 
-export const SOLVE_NX = 49;
-export const SOLVE_NY = 49;
+/** Odd so y=0 is a grid node. Colormap and marching-square isolines use this same posted field. */
+export const SOLVE_NX = 97;
+export const SOLVE_NY = 97;
 
 export type SolveInput = {
   layer: AppLayer;
