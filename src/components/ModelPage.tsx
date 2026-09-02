@@ -118,11 +118,13 @@ export function ModelPage() {
           <sub>inj</sub>–<i>h</i>
           <sub>inj</sub> figure pinches the same way. The hinj axis is the characteristics sweep{" "}
           <span className="mono">hinj_min</span>–<span className="mono">hinj_max</span> ({HINJ_MJ_MIN}–{HINJ_MJ_MAX}
-          &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). The Map pinj axis is <span className="mono">axesView</span>{" "}
+          &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). Map <span className="mono">axesView</span> is{" "}
           <i>p</i>0: 0 to <span className="mono">pinjLimits(family).max</span> (IPG6-S 0–
           {pinjLimits("IPG6-S").max}&nbsp;Pa, IPG4 0–{pinjLimits("IPG4").max}&nbsp;Pa, IPG3 0–
-          {pinjLimits("IPG3").max}&nbsp;Pa) — not the Setup slider clamp (§1 mins IPG6-S {IPG6_PINJ.min}, IPG4/IPG3{" "}
-          {IPG4_PINJ.min}) and not the API catalog clip 250/5000/3000. Extra ṁ and power isolines are
+          {pinjLimits("IPG3").max}&nbsp;Pa). Setup sliders use <span className="mono">pinjLimits</span> min–max
+          (IPG6-S {IPG6_PINJ.min}–{IPG6_PINJ.max}&nbsp;Pa, IPG4 {IPG4_PINJ.min}–{IPG4_PINJ.max}&nbsp;Pa, IPG3{" "}
+          {IPG3_PINJ.min}–{IPG3_PINJ.max}&nbsp;Pa). Those are not the same, and not the API catalog clip 250/5000/3000.
+          Extra ṁ and power isolines are
           1–2–5 traces of the same computed <i>k</i>(<i>h</i>)×<i>p</i>
           <sub>inj</sub> identity in the current Map window (~12–16 in that span; pinch fills the window, fitted
           density stays similar). This PWA does not invent <i>k</i> or a second characteristics call. Zoom-out cannot
