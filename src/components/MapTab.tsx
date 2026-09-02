@@ -11,7 +11,7 @@ import {
   type MapView,
 } from "../canvas/map";
 import { viewsClose } from "../canvas/viewZoom";
-import { usesGrams, type AxisFamily } from "../facility";
+import { clampHinj, usesGrams, type AxisFamily } from "../facility";
 import { fmtMdot, fmtPinjPa, fmtPower, moleLabel } from "../format";
 import { cssPoint, pairStats, PlotTouch, wheelScale } from "../gestures/plotTouch";
 import type { CharacteristicsResponse } from "../types";
@@ -31,6 +31,7 @@ type Props = {
   pinjLim: { min: number; max: number; step: number };
   mdotLim: { min: number; max: number };
   onPinj: (v: number) => void;
+  onHinj: (v: number) => void;
   onMdot: (mg: number) => void;
   onRunPoint: (pinj: number, hinj: number) => void;
 };
@@ -49,6 +50,7 @@ export function MapTab({
   pinjLim,
   mdotLim,
   onPinj,
+  onHinj,
   onMdot,
   onRunPoint,
 }: Props) {
@@ -62,18 +64,7 @@ export function MapTab({
   const pinchView = useRef<MapView | null>(null);
   const touch = useRef(new PlotTouch());
   const paintRef = useRef<() => void>(() => {});
-  const [cursor, setCursor] = useState({ pinj, hinj });
   const [zoomed, setZoomed] = useState(false);
-  const cursorRef = useRef(cursor);
-  const syncedOp = useRef({ pinj, hinj });
-  if (syncedOp.current.pinj !== pinj || syncedOp.current.hinj !== hinj) {
-    syncedOp.current = { pinj, hinj };
-    setCursor({ pinj, hinj });
-  }
-
-  useEffect(() => {
-    cursorRef.current = cursor;
-  }, [cursor]);
 
   useEffect(() => {
     if (!ch) return;
@@ -123,7 +114,7 @@ export function MapTab({
         dpr,
         ch,
         family,
-        cursor: cursorRef.current,
+        cursor: { pinj, hinj },
         marks,
         view: viewRef.current,
       });
@@ -137,7 +128,7 @@ export function MapTab({
             cssH: cw.clientHeight,
             dpr: cc.width / Math.max(1, cw.clientWidth),
             ch,
-            hinjMark: cursorRef.current.hinj,
+            hinjMark: hinj,
           });
         }
       }
@@ -169,17 +160,18 @@ export function MapTab({
       ro.disconnect();
       plot.removeEventListener("wheel", onWheel);
     };
-  }, [visible, ch, family, facility, cursor]);
+  }, [visible, ch, family, facility, pinj, hinj]);
 
-  const moveCursor = (e: PE<HTMLCanvasElement>) => {
+  const moveOp = (e: PE<HTMLCanvasElement>) => {
     const lay = layRef.current;
-    const plot = plotRef.current;
-    if (!lay || !plot || !ch) return;
-    const r = plot.getBoundingClientRect();
+    const wrap = plotWrap.current;
+    if (!lay || !wrap || !ch) return;
+    const css = cssPoint(e, wrap);
     const view = viewRef.current ?? axesView(ch, family);
-    const pinj = Math.min(view.p1, Math.max(view.p0, lay.fromP(e.clientX - r.left)));
-    const hinj = Math.min(view.h1, Math.max(view.h0, lay.fromH(e.clientY - r.top)));
-    setCursor({ pinj, hinj });
+    const nextP = Math.min(view.p1, Math.max(view.p0, lay.fromP(css.x)));
+    const nextH = Math.min(view.h1, Math.max(view.h0, lay.fromH(css.y)));
+    onPinj(nextP);
+    onHinj(clampHinj(nextH));
   };
 
   const applyPinch = () => {
@@ -225,7 +217,7 @@ export function MapTab({
       applyPinch();
       return;
     }
-    moveCursor(e);
+    moveOp(e);
   };
 
   const onMove = (e: PE<HTMLCanvasElement>) => {
@@ -236,7 +228,7 @@ export function MapTab({
       applyPinch();
       return;
     }
-    if (kind === "one") moveCursor(e);
+    if (kind === "one") moveOp(e);
   };
 
   const onUp = (e: PE<HTMLCanvasElement>) => {
@@ -249,7 +241,7 @@ export function MapTab({
     }
   };
 
-  const readout = ch ? mapReadout(ch, cursor.pinj, cursor.hinj) : null;
+  const readout = ch ? mapReadout(ch, pinj, hinj) : null;
   const majors = readout?.xs.filter((s) => s.x >= 0.02).slice(0, 4) ?? [];
   const grams = usesGrams(family);
 
@@ -322,15 +314,11 @@ export function MapTab({
           format={(n) => (Math.abs(n) >= 100 ? String(Math.round(n)) : n.toFixed(1).replace(/\.0$/, ""))}
           unit="Pa"
           ariaLabel="chamber injection pressure pascal"
-          onCommit={(n) => {
-            syncedOp.current = { pinj: n, hinj };
-            onPinj(n);
-            setCursor({ pinj: n, hinj });
-          }}
+          onCommit={onPinj}
         />
       </div>
       <div className="map-read">
-        {fmtPinjPa(cursor.pinj)} · {cursor.hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
+        {fmtPinjPa(pinj)} · {hinj.toFixed(1)} MJ/kg · {fmtMdot(readout?.mdot_mg_s ?? 0, family)} ·{" "}
         {fmtPower(readout?.power_W ?? 0)}
         {majors.length > 0 ? " · " : ""}
         {majors.map((s) => `${moleLabel(s.key)} ${s.x.toFixed(2)}`).join("  ")}
@@ -339,7 +327,7 @@ export function MapTab({
         <canvas ref={compRef} />
       </div>
       <div className="map-act">
-        <button onClick={() => onRunPoint(cursor.pinj, cursor.hinj)}>Run this point</button>
+        <button onClick={() => onRunPoint(pinj, hinj)}>Run this point</button>
       </div>
     </>
   );

@@ -516,6 +516,7 @@ export default function App() {
             pinjLim={pLim}
             mdotLim={mLim}
             onPinj={setPinj}
+            onHinj={setHinj}
             onMdot={(m) => {
               setMdotMg(m);
               loadMap(m);

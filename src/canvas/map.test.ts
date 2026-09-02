@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CharacteristicsResponse } from "../types";
-import { axesView, compositionDash, compositionDrawOrder, isElectron, isPositiveIon, packMapIsolines } from "./map";
+import { axesView, compositionDash, compositionDrawOrder, isElectron, isPositiveIon, mapLayout, mapOperatingPointCss, packMapIsolines } from "./map";
 
 function fakeCh(): CharacteristicsResponse {
   const hinj_MJ_kg = Array.from({ length: 9 }, (_, i) => 5 + i * 4);
@@ -81,5 +81,25 @@ describe("packMapIsolines", () => {
     const viewMax = Math.max(...packed.mdot.map((i) => i.mdot_mg_s ?? 0));
     const fitMax = Math.max(...fitted.mdot.map((i) => i.mdot_mg_s ?? 0));
     expect(viewMax).toBeLessThan(fitMax);
+  });
+});
+
+describe("mapOperatingPointCss", () => {
+  it("places the marker at exact pinj and hinj, not the nearest CEA hinj node", () => {
+    const view = { p0: 0, p1: 2000, h0: 1, h1: 70 };
+    const lay = mapLayout(400, 300, view);
+    const ceaNodes = Array.from({ length: 29 }, (_, i) => 1 + (i * 69) / 28);
+    const at = mapOperatingPointCss(lay, 150, 23);
+    expect(at.x).toBe(lay.toX(150));
+    expect(at.y).toBe(lay.toY(23));
+    expect(at.x).not.toBe(lay.toX(100));
+    for (const node of ceaNodes) {
+      if (Math.abs(node - 23) < 1e-9) continue;
+      expect(at.y).not.toBe(lay.toY(node));
+    }
+    const yLinear = lay.t + lay.h - ((23 - view.h0) / (view.h1 - view.h0)) * lay.h;
+    expect(at.y).toBeCloseTo(yLinear, 12);
+    const xLinear = lay.l + ((150 - view.p0) / (view.p1 - view.p0)) * lay.w;
+    expect(at.x).toBeCloseTo(xLinear, 12);
   });
 });

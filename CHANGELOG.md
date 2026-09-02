@@ -2,7 +2,8 @@
 
 All notable changes to this project are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
@@ -14,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Map operating-point crosshair is the exact Setup pinj and hinj in linear plot space. It does not snap to a CEA sample node or sit on a leftover tap cursor. ṁ/power/mole readout still interpolates from the hinj column.
 - Plume isoline numbers reflow for every plotted field in the current millimetre window (farthest-fit, skip overlaps). U, Mach, and E no longer drop labels on pinch; n/n0 already did. Not a 5-label cap. ([#1](https://github.com/ckaerospace/ipg-operator/issues/1))
 
 ## [1.0.0] - 2026-08-30

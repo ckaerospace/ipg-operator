@@ -61,6 +61,15 @@ export function mapLayout(cssW: number, cssH: number, view: MapView): MapLayout 
   };
 }
 
+/** Operating-point CSS in plot space — linear axis coords, not nearest CEA sample. */
+export function mapOperatingPointCss(
+  lay: MapLayout,
+  pinjPa: number,
+  hinjMjKg: number,
+): { x: number; y: number } {
+  return { x: lay.toX(pinjPa), y: lay.toY(hinjMjKg) };
+}
+
 function clipLine(pinj: number[], hinj: number[]): { p: number; h: number }[] {
   const out: { p: number; h: number }[] = [];
   for (let i = 0; i < pinj.length; i++) {
@@ -360,8 +369,7 @@ export function drawCharacteristics(opts: {
     }
   }
 
-  const cx = lay.toX(cursor.pinj);
-  const cy = lay.toY(cursor.hinj);
+  const { x: cx, y: cy } = mapOperatingPointCss(lay, cursor.pinj, cursor.hinj);
   ctx.strokeStyle = "#2ee6c5";
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 3]);

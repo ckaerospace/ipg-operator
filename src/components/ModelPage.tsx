@@ -149,7 +149,10 @@ export function ModelPage() {
           <sub>inj</sub> figure pinches the same way. Typed ṁ and pinj on Map are the Setup ṁ and pinj
           (same DraftNumber rules as station <i>x</i>, <i>y</i> — empty does not write 0), not a second physics
           copy. Changing pinj moves the operating-point marker; <i>h</i>
-          <sub>inj</sub> stays the Setup value. Changing ṁ rebuilds the characteristics map. ṁ is not a Map axis.
+          <sub>inj</sub> stays the Setup value. The teal crosshair is the exact Setup (
+          <span className="mono">pinj</span>, <span className="mono">hinj</span>) in linear axis coordinates — the same
+          idea as typed station millimetres — not the nearest CEA hinj sample. ṁ, power, and mole
+          fractions in the Map readout still interpolate from the hinj column. Changing ṁ rebuilds the characteristics map. ṁ is not a Map axis.
           The hinj axis is the characteristics sweep{" "}
           <span className="mono">hinj_min</span>–<span className="mono">hinj_max</span> ({HINJ_MJ_MIN}–{HINJ_MJ_MAX}
           &nbsp;MJ/kg, <span className="mono">n_h</span> = 29). The pinj box is the Setup family clamp (IPG6-S 0–
