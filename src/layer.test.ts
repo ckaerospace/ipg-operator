@@ -40,10 +40,15 @@ describe("solve body", () => {
       const json = solveBodyJson({ ...base, layer: "thesis", plumeMode, p_tank_Pa: 25 });
       expect(json.plume_mode).toBe("collisionless");
       expect(json).not.toHaveProperty("p_tank_Pa");
+      expect(json.nx).toBe(97);
+      expect(json.ny).toBe(97);
+      expect((json.nx as number) % 2).toBe(1);
     }
     const locked = buildSolveBody({ ...base, layer: "manual", plumeMode: "sudden_freeze" });
     expect(locked.plume_mode).toBe("collisionless");
     expect(locked.p_tank_Pa).toBeUndefined();
+    expect(locked.nx).toBe(97);
+    expect(locked.ny).toBe(97);
 
     const withProbe = solveBodyJson({
       ...base,
