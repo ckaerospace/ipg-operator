@@ -2,8 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
@@ -11,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advanced Plume: Collisionless | Freeze chips in the figure (bottom-left, above the x-axis) re-solve the same exclusive pair as Setup Physics. Auto stays on Setup. A gold Disk chip is live only after Freeze ran with `shock_applied`; off hides the barrel and Mach-disk overlay without changing the colormap. Thesis has no plot chips.
 - Desktop Plume plot is taller (`min(64vh, 520px)`); phone height is unchanged.
+- Map: typed ṁ and pinj (same DraftNumber rules as Plume x/y) are the Setup values, not a second copy. Changing pinj moves the operating-point marker; hinj stays the Setup value. Changing ṁ rebuilds the characteristics map. ṁ is not a Map axis.
 
 ### Fixed
 
