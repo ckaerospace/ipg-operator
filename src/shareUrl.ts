@@ -1,11 +1,9 @@
 import type { CustomMix } from "./mixture";
-import { emptyCustomMix, encodeMixParam, parseMixParam } from "./mixture";
 import {
   clampDiskRmm,
   clampDiskXm,
   clampProbeYm,
   clampTankPa,
-  DISK_R_MM_DEFAULT,
 } from "./physics";
 import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "./types";
 import { NAMED_GASES } from "./types";
@@ -46,7 +44,6 @@ export type ShareFields = {
 };
 
 const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
-const GASES: GasId[] = [...NAMED_GASES, "custom"];
 const MODES: SolveMode[] = ["generator", "enthalpy"];
 const PLUMES: PlumeMode[] = ["auto", "collisionless", "sudden_freeze"];
 const OBJECTS: JetObject[] = ["none", "disk"];
@@ -68,15 +65,11 @@ export function parseShareSearch(search: string): SharePoint {
   const q = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const out: SharePoint = {};
   const layer = q.get("layer");
-  if (layer === "thesis" || layer === "advanced") out.layer = layer;
+  if (layer === "thesis" || layer === "advanced" || layer === "manual") out.layer = "thesis";
   const facility = pick(q.get("facility"), FACILITIES);
-  if (facility) out.facility = facility;
-  const gas = pick(q.get("gas"), GASES);
+  if (facility && facility !== "Custom") out.facility = facility;
+  const gas = pick(q.get("gas"), NAMED_GASES);
   if (gas) out.gas = gas;
-  if (gas === "custom") {
-    const mix = parseMixParam(q.get("mix"));
-    if (mix) out.mix = mix;
-  }
   const mode = pick(q.get("mode"), MODES);
   if (mode) out.mode = mode;
   const plume = pick(q.get("plume"), PLUMES);
@@ -104,28 +97,19 @@ export function parseShareSearch(search: string): SharePoint {
 
 export function encodeShareSearch(fields: ShareFields): string {
   const q = new URLSearchParams();
-  q.set("layer", fields.layer);
-  q.set("facility", fields.facility);
-  q.set("gas", fields.gas);
-  if (fields.gas === "custom") {
-    const mix = encodeMixParam(fields.customMix ?? emptyCustomMix());
-    if (mix) q.set("mix", mix);
-  }
+  q.set("layer", "thesis");
+  const facility = fields.facility === "Custom" ? "IPG6-S" : fields.facility;
+  q.set("facility", facility);
+  const gas = fields.gas === "custom" ? "O2" : fields.gas;
+  q.set("gas", gas);
   q.set("mode", fields.mode);
   q.set("pinj", String(fields.pinj));
   if (fields.mode === "generator") q.set("mdot", String(fields.mdot_mg_s));
   if (fields.mode === "enthalpy") q.set("hinj", String(fields.hinj));
-  const plume = fields.layer === "advanced" ? fields.plumeMode : "collisionless";
-  q.set("plume", plume);
-  if (fields.layer === "advanced") {
-    q.set("ptank", String(clampTankPa(fields.pTank)));
-    q.set("object", fields.object === "disk" ? "disk" : "none");
-  }
-  const advDisk = fields.layer === "advanced" && fields.object === "disk";
+  q.set("plume", "collisionless");
   if (fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
     q.set("probe_x", String(clampDiskXm(fields.diskX_m)));
     q.set("probe_y", String(clampProbeYm(fields.diskY_m ?? 0)));
-    if (advDisk) q.set("probe_r", String(clampDiskRmm(fields.diskR_mm ?? DISK_R_MM_DEFAULT)));
   }
   return q.toString();
 }
@@ -161,16 +145,12 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Station x/y come from probe_x / probe_y. The calorimeter plate is Advanced object=disk only. */
+/** Station x/y come from probe_x / probe_y. Thesis has no calorimeter plate. */
 export function hydrateShareObject(
-  layer: "thesis" | "advanced",
+  _layer: "thesis" | "advanced",
   share: SharePoint,
 ): { object: JetObject; diskX: number | null; probeY: number } {
   const probeY = share.probe_y != null && Number.isFinite(share.probe_y) ? share.probe_y : 0;
-  if (layer === "advanced") {
-    const object: JetObject = share.object === "disk" ? "disk" : "none";
-    return { object, diskX: share.probe_x ?? null, probeY };
-  }
   return { object: "none", diskX: share.probe_x ?? null, probeY };
 }
 

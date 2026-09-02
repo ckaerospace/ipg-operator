@@ -4,13 +4,13 @@ export const LAYER_KEY = "ipg-layer";
 export const DEFAULT_LAYER: AppLayer = "thesis";
 
 export function parseLayer(raw: string | null | undefined): AppLayer {
-  if (raw === "thesis" || raw === "advanced" || raw === "manual") return raw;
+  if (raw === "manual") return "manual";
   return DEFAULT_LAYER;
 }
 
-/** Solver chrome: the Model page (`layer=manual`) is not a solve layer. */
-export function operatorLayer(layer: AppLayer): "thesis" | "advanced" {
-  return layer === "advanced" ? "advanced" : "thesis";
+/** Live PWA is Thesis-only. Advanced is not an operator layer. */
+export function operatorLayer(_layer?: AppLayer): "thesis" {
+  return "thesis";
 }
 
 export function readLayer(): AppLayer {
@@ -23,7 +23,7 @@ export function readLayer(): AppLayer {
 
 export function writeLayer(layer: AppLayer): void {
   try {
-    localStorage.setItem(LAYER_KEY, layer);
+    localStorage.setItem(LAYER_KEY, layer === "manual" ? "manual" : "thesis");
   } catch {
     /* private mode */
   }

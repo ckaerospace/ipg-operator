@@ -1,7 +1,5 @@
 import type { SolveBody } from "./api";
 import type { AppLayer } from "./layer";
-import { operatorLayer } from "./layer";
-import { clampDiskRmm, clampDiskXm, clampProbeTw, clampTankPa, PROBE_TW_K } from "./physics";
 import type { Mixture, PlumeMode, SolveMode } from "./types";
 
 export const SOLVE_NX = 49;
@@ -25,12 +23,11 @@ export type SolveInput = {
   probe_Tw_K?: number;
 };
 
-/** Thesis always collisionless and omits p_tank_Pa. Advanced sends the chosen kernel and tank. */
+/** Thesis-only: always collisionless. Omit tank, probe, and freeze fields. */
 export function buildSolveBody(input: SolveInput): SolveBody {
-  const advanced = operatorLayer(input.layer) === "advanced";
-  const body: SolveBody = {
+  return {
     mode: input.mode,
-    plume_mode: advanced ? input.plumeMode : "collisionless",
+    plume_mode: "collisionless",
     mixture: input.mixture,
     basis: "mole",
     d_c_mm: input.d_c_mm,
@@ -43,13 +40,6 @@ export function buildSolveBody(input: SolveInput): SolveBody {
     nx: SOLVE_NX,
     ny: SOLVE_NY,
   };
-  if (advanced) body.p_tank_Pa = clampTankPa(input.p_tank_Pa);
-  if (input.probe_x_m != null && Number.isFinite(input.probe_x_m)) {
-    body.probe_x_m = clampDiskXm(input.probe_x_m);
-    body.probe_r_mm = clampDiskRmm(input.probe_r_mm ?? 20);
-    body.probe_Tw_K = clampProbeTw(input.probe_Tw_K ?? PROBE_TW_K);
-  }
-  return body;
 }
 
 export function solveBodyJson(input: SolveInput): Record<string, unknown> {

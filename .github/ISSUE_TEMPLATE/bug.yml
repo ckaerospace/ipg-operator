@@ -12,10 +12,9 @@ body:
   - type: dropdown
     id: layer
     attributes:
-      label: Layer
+      label: Page
       options:
-        - Thesis
-        - Advanced
+        - Setup / Plume / Map
         - Model
     validations:
       required: true
@@ -28,7 +27,6 @@ body:
         - IPG6-S
         - IPG4
         - IPG3
-        - Custom
     validations:
       required: true
 
@@ -64,24 +62,12 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: p_tank
-    attributes:
-      label: p_tank
-      description: Tank / background pressure (Advanced). Use "n/a" on Thesis.
-      placeholder: e.g. 10 Pa
-    validations:
-      required: true
-
   - type: dropdown
     id: plume_mode
     attributes:
       label: plume_mode
       options:
-        - collisionless (Thesis)
-        - auto
         - collisionless
-        - sudden_freeze
         - n/a (Model)
     validations:
       required: true
@@ -90,8 +76,8 @@ body:
     id: tapped
     attributes:
       label: What you tapped
-      description: Controls, chips, Run, probe, Map, Model, etc.
-      placeholder: e.g. Setup → Advanced → Run → Plume → U
+      description: Controls, chips, Run, Map, Model, etc.
+      placeholder: e.g. Setup → Run → Plume → U
     validations:
       required: true
 

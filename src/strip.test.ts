@@ -60,6 +60,8 @@ describe("header strip", () => {
     expect(keys).not.toContain("pinj");
     expect(keys).not.toContain("p_tank");
     expect(keys).not.toContain("p_probe");
+    expect(keys).not.toContain("NPR");
+    expect(keys).not.toContain("Kn_exit");
     expect(rows.find((r) => r.k === "n0")?.v).toBe("1.2e20 m⁻³");
     expect(rows.find((r) => r.k === "power")?.v).toMatch(/296 W|W/);
   });
