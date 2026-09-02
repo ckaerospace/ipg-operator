@@ -20,25 +20,22 @@ const base: SolveInput = {
 };
 
 describe("layers", () => {
-  it("defaults to Thesis", () => {
+  it("defaults to Thesis and treats Advanced as Thesis", () => {
     expect(DEFAULT_LAYER).toBe("thesis");
     expect(parseLayer(null)).toBe("thesis");
     expect(parseLayer(undefined)).toBe("thesis");
     expect(parseLayer("nope")).toBe("thesis");
+    expect(parseLayer("advanced")).toBe("thesis");
+    expect(operatorLayer("advanced")).toBe("thesis");
     expect(operatorLayer("manual")).toBe("thesis");
     expect(parseLayer("manual")).toBe("manual");
     expect(LAYER_LABEL.manual).toBe("Model");
     expect(operatorLayer("thesis")).toBe("thesis");
   });
-
-  it("keeps Advanced as the operator layer", () => {
-    expect(parseLayer("advanced")).toBe("advanced");
-    expect(operatorLayer("advanced")).toBe("advanced");
-  });
 });
 
 describe("solve body", () => {
-  it("Thesis always posts collisionless and omits p_tank_Pa", () => {
+  it("always posts collisionless and omits p_tank_Pa and probe fields", () => {
     for (const plumeMode of ["auto", "collisionless", "sudden_freeze"] as const) {
       const json = solveBodyJson({ ...base, layer: "thesis", plumeMode, p_tank_Pa: 25 });
       expect(json.plume_mode).toBe("collisionless");
@@ -47,53 +44,21 @@ describe("solve body", () => {
     const locked = buildSolveBody({ ...base, layer: "manual", plumeMode: "sudden_freeze" });
     expect(locked.plume_mode).toBe("collisionless");
     expect(locked.p_tank_Pa).toBeUndefined();
-  });
 
-  it("posts probe disk fields on Thesis and Advanced, and still omits tank on Thesis", () => {
-    const thesis = solveBodyJson({
+    const withProbe = solveBodyJson({
       ...base,
-      layer: "thesis",
+      layer: "advanced",
+      plumeMode: "sudden_freeze",
+      p_tank_Pa: 40,
       probe_x_m: 0.12,
       probe_r_mm: 20,
       probe_Tw_K: 300,
     });
-    expect(thesis.plume_mode).toBe("collisionless");
-    expect(thesis.probe_x_m).toBe(0.12);
-    expect(thesis.probe_r_mm).toBe(20);
-    expect(thesis.probe_Tw_K).toBe(300);
-    expect(thesis).not.toHaveProperty("p_tank_Pa");
-
-    const adv = solveBodyJson({
-      ...base,
-      layer: "advanced",
-      probe_x_m: 0.08,
-      probe_r_mm: 50,
-      probe_Tw_K: 300,
-    });
-    expect(adv.probe_x_m).toBe(0.08);
-    expect(adv.probe_r_mm).toBe(50);
-    expect(adv.p_tank_Pa).toBe(25);
-  });
-
-  it("omits probe fields when the disk is not placed", () => {
-    const json = solveBodyJson({ ...base, layer: "advanced" });
-    expect(json).not.toHaveProperty("probe_x_m");
-    expect(json).not.toHaveProperty("probe_r_mm");
-    expect(json).not.toHaveProperty("probe_Tw_K");
-  });
-
-  it("Advanced can post auto or sudden_freeze and p_tank_Pa", () => {
-    const auto = solveBodyJson({ ...base, layer: "advanced", plumeMode: "auto", p_tank_Pa: 10 });
-    expect(auto.plume_mode).toBe("auto");
-    expect(auto.p_tank_Pa).toBe(10);
-
-    const freeze = solveBodyJson({ ...base, layer: "advanced", plumeMode: "sudden_freeze", p_tank_Pa: 40 });
-    expect(freeze.plume_mode).toBe("sudden_freeze");
-    expect(freeze.p_tank_Pa).toBe(40);
-
-    const coll = buildSolveBody({ ...base, layer: "advanced", plumeMode: "collisionless", p_tank_Pa: 0.1 });
-    expect(coll.plume_mode).toBe("collisionless");
-    expect(coll.p_tank_Pa).toBe(0.1);
+    expect(withProbe.plume_mode).toBe("collisionless");
+    expect(withProbe).not.toHaveProperty("p_tank_Pa");
+    expect(withProbe).not.toHaveProperty("probe_x_m");
+    expect(withProbe).not.toHaveProperty("probe_r_mm");
+    expect(withProbe).not.toHaveProperty("probe_Tw_K");
   });
 });
 

@@ -51,7 +51,7 @@ describe("share URL", () => {
     expect(parsed.run).toBeUndefined();
   });
 
-  it("Advanced keeps tank and plume kernel", () => {
+  it("forces Advanced shares onto Thesis and drops tank, object, and freeze", () => {
     const q = encodeShareSearch({
       ...fields,
       layer: "advanced",
@@ -61,15 +61,20 @@ describe("share URL", () => {
       diskX_m: null,
     });
     const parsed = parseShareSearch(`?${q}`);
-    expect(parsed.layer).toBe("advanced");
-    expect(parsed.plume).toBe("sudden_freeze");
-    expect(parsed.ptank).toBe(40);
-    expect(parsed.object).toBe("none");
+    expect(q).toContain("layer=thesis");
+    expect(q).toContain("plume=collisionless");
+    expect(q).not.toContain("ptank=");
+    expect(q).not.toContain("object=");
+    expect(parsed.layer).toBe("thesis");
+    expect(parsed.plume).toBe("collisionless");
+    expect(parsed.ptank).toBeUndefined();
+    expect(parsed.object).toBeUndefined();
     expect(q).not.toContain("probe_x=");
     expect(q).not.toContain("probe_y=");
+    expect(parseShareSearch("?layer=advanced&facility=IPG4&ptank=40&plume=sudden_freeze").layer).toBe("thesis");
   });
 
-  it("omits probe_r on Thesis even when a plate is placed", () => {
+  it("omits probe_r even when a station is placed", () => {
     const q = encodeShareSearch({ ...fields, layer: "thesis", diskR_mm: 40 });
     expect(q).toContain("probe_x=0.12");
     expect(q).toContain("probe_y=0");
@@ -83,26 +88,14 @@ describe("share URL", () => {
     expect(parseShareSearch(`?${q}`).probe_y).toBeCloseTo(0.04);
   });
 
-  it("Advanced Object Disk persists on/off and x/r", () => {
+  it("does not persist Object Disk", () => {
     const q = encodeShareSearch({ ...fields, layer: "advanced", object: "disk" });
     const parsed = parseShareSearch(`?${q}`);
-    expect(parsed.object).toBe("disk");
-    expect(parsed.probe_x).toBe(0.12);
-    expect(parsed.probe_r).toBe(20);
-  });
-
-  it("Advanced Object None does not auto-place a disk from leftover x", () => {
-    const q = encodeShareSearch({
-      ...fields,
-      layer: "advanced",
-      object: "none",
-      diskX_m: 0.12,
-    });
-    expect(q).toContain("object=none");
-    expect(q).toContain("probe_x=0.12");
-    expect(q).toContain("probe_y=0");
+    expect(q).not.toContain("object=");
     expect(q).not.toContain("probe_r=");
-    expect(parseShareSearch("?layer=advanced&facility=IPG4&probe_x=0.12").object).toBeUndefined();
+    expect(parsed.object).toBeUndefined();
+    expect(parsed.probe_x).toBe(0.12);
+    expect(parsed.probe_r).toBeUndefined();
   });
 
   it("omits the disk when it is not placed", () => {
@@ -119,49 +112,33 @@ describe("share URL", () => {
     expect(parseShareSearch("?layer=thesis").run).toBeUndefined();
   });
 
-  it("clamps disk radius to 5–50 mm", () => {
-    expect(parseShareSearch("?probe_r=3").probe_r).toBe(5);
-    expect(parseShareSearch("?probe_r=80").probe_r).toBe(50);
-  });
-
-  it("restores the station from probe_x / probe_y; plate only when object=disk", () => {
-    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).diskX).toBe(0.12);
-    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).probeY).toBe(0.03);
-    expect(hydrateShareObject("thesis", { probe_x: 0.12 }).object).toBe("none");
-    expect(hydrateShareObject("advanced", { probe_x: 0.12 }).diskX).toBe(0.12);
-    expect(hydrateShareObject("advanced", { probe_x: 0.12 }).object).toBe("none");
-    expect(hydrateShareObject("advanced", { object: "none", probe_x: 0.12 }).diskX).toBe(0.12);
-    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).diskX).toBe(0.08);
-    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).object).toBe("disk");
-    expect(hydrateShareObject("advanced", { object: "disk" }).diskX).toBeNull();
-  });
-
-  it("round-trips custom mole mix without named-gas mix=", () => {
+  it("ignores Custom facility and custom gas", () => {
+    expect(parseShareSearch("?facility=Custom&gas=custom&mix=He:0.7,O2:0.3").facility).toBeUndefined();
+    expect(parseShareSearch("?facility=Custom&gas=custom&mix=He:0.7,O2:0.3").gas).toBeUndefined();
+    expect(parseShareSearch("?facility=Custom&gas=custom&mix=He:0.7,O2:0.3").mix).toBeUndefined();
     const q = encodeShareSearch({
       ...fields,
+      facility: "Custom",
       gas: "custom",
       customMix: { O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 },
     });
-    expect(q).toContain("gas=custom");
-    expect(q).toContain("mix=O2%3A0.3%2CHe%3A0.7");
-    const parsed = parseShareSearch(`?${q}`);
-    expect(parsed.gas).toBe("custom");
-    expect(parsed.mix).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 });
-    expect(parseShareSearch("?gas=custom&mix=He:0.7,O2:0.3").mix).toEqual({
-      O2: 0.3,
-      N2: 0,
-      CO2: 0,
-      He: 0.7,
-      Ar: 0,
-    });
-    const named = encodeShareSearch(fields);
-    expect(named).toContain("gas=CO2");
-    expect(named).not.toContain("mix=");
+    expect(q).toContain("facility=IPG6-S");
+    expect(q).toContain("gas=O2");
+    expect(q).not.toContain("mix=");
+  });
+
+  it("restores the station from probe_x / probe_y and never a plate", () => {
+    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).diskX).toBe(0.12);
+    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).probeY).toBe(0.03);
+    expect(hydrateShareObject("thesis", { probe_x: 0.12 }).object).toBe("none");
+    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).object).toBe("none");
+    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).diskX).toBe(0.08);
   });
 
   it("builds from the live origin", () => {
     const href = shareUrl("https://ipg-operator.onrender.com", fields);
     expect(href.startsWith("https://ipg-operator.onrender.com/?")).toBe(true);
     expect(href).toContain("facility=IPG4");
+    expect(href).toContain("layer=thesis");
   });
 });

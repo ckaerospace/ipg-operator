@@ -9,23 +9,12 @@ import {
   KNOWN_POINTS,
   type AxisFamily,
 } from "../facility";
-import { fmtFixed, fmtMdot, fmtPinjPa } from "../format";
+import { fmtMdot, fmtPinjPa } from "../format";
 import type { AppLayer } from "../layer";
-import { CUSTOM_SPECIES, mixtureSum, type CustomMix } from "../mixture";
-import {
-  clampDiskRmm,
-  clampProbeTw,
-  DISK_R_MM_MAX,
-  DISK_R_MM_MIN,
-  PINJ_SLIDER_STEPS,
-  pinjPaToSlider,
-  P_TANK_MAX,
-  P_TANK_MIN,
-  sliderToPinjPa,
-} from "../physics";
+import type { CustomMix } from "../mixture";
+import { PINJ_SLIDER_STEPS, pinjPaToSlider, sliderToPinjPa } from "../physics";
 import { copyText } from "../shareUrl";
 import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "../types";
-import { DraftNumber } from "./DraftNumber";
 import { LayerBar } from "./LayerBar";
 
 type Props = {
@@ -68,7 +57,7 @@ type Props = {
   shareHref: string;
 };
 
-const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
+const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3"];
 
 export function SetupTab(p: Props) {
   const grams = p.family !== "IPG6-S";
@@ -78,11 +67,9 @@ export function SetupTab(p: Props) {
   const mdotMax = grams ? p.mdotLim.max / 1000 : p.mdotLim.max;
   const mdotStep = grams ? 0.01 : 0.1;
 
-  const advanced = p.layer === "advanced";
-
   return (
     <div className="scroll">
-      <LayerBar current={p.layer === "manual" ? "thesis" : p.layer} onThesisOrAdvanced={p.onLayer} />
+      <LayerBar current={p.layer === "manual" ? "thesis" : p.layer} />
 
       <div className="h-label">Generator</div>
       <div className="chips">
@@ -93,53 +80,29 @@ export function SetupTab(p: Props) {
         ))}
       </div>
 
-      {p.facility !== "Custom" ? (
-        <div className="card" style={{ marginTop: 12 }}>
-          <div className="title">{meta.label}</div>
-          <div className="geo">
-            <div>
-              <span>Dc</span> {meta.dc} mm
-            </div>
-            <div>
-              <span>Dt</span> {meta.dt} mm
-            </div>
-            <div>
-              <span>De</span> {meta.de} mm
-            </div>
-            <div>
-              <span>nozzle</span> {meta.nozzle}
-            </div>
-            <div>
-              <span>ṁ</span> {meta.label === "IPG6-S" ? "mg/s" : "g/s"}
-            </div>
-            <div>
-              <span>default gas</span> {meta.defaultGas}
-            </div>
+      <div className="card" style={{ marginTop: 12 }}>
+        <div className="title">{meta.label}</div>
+        <div className="geo">
+          <div>
+            <span>Dc</span> {meta.dc} mm
+          </div>
+          <div>
+            <span>Dt</span> {meta.dt} mm
+          </div>
+          <div>
+            <span>De</span> {meta.de} mm
+          </div>
+          <div>
+            <span>nozzle</span> {meta.nozzle}
+          </div>
+          <div>
+            <span>ṁ</span> {meta.label === "IPG6-S" ? "mg/s" : "g/s"}
+          </div>
+          <div>
+            <span>default gas</span> {meta.defaultGas}
           </div>
         </div>
-      ) : (
-        <div className="fields three" style={{ marginTop: 12 }}>
-          {(
-            [
-              ["Dc mm", "dc", p.custom.dc],
-              ["Dt mm", "dt", p.custom.dt],
-              ["De mm", "de", p.custom.de],
-            ] as const
-          ).map(([lab, key, val]) => (
-            <label className="field" key={key}>
-              {lab}
-              <DraftNumber
-                value={val}
-                min={1}
-                max={499}
-                step={0.5}
-                aria-label={lab}
-                onCommit={(n) => p.onCustom({ [key]: n })}
-              />
-            </label>
-          ))}
-        </div>
-      )}
+      </div>
 
       <div className="h-label">Gas</div>
       <div className="chips">
@@ -148,11 +111,7 @@ export function SetupTab(p: Props) {
             {g.label}
           </button>
         ))}
-        <button className={`chip${p.gas === "custom" ? " on" : ""}`} onClick={() => p.onGas("custom")}>
-          Custom
-        </button>
       </div>
-      {p.gas === "custom" && <MixEditor mix={p.customMix} onChange={p.onCustomMix} />}
 
       <div className="h-label">Generator setup</div>
       <div className="chips" style={{ marginBottom: 10 }}>
@@ -226,151 +185,22 @@ export function SetupTab(p: Props) {
         ))}
       </div>
 
-      {advanced ? (
-        <>
-          <div className="h-label">Physics</div>
-          <div className="chips">
-            {(
-              [
-                ["auto", "Auto"],
-                ["collisionless", "Collisionless"],
-                ["sudden_freeze", "Sudden-freeze"],
-              ] as const
-            ).map(([id, lab]) => (
-              <button key={id} className={`chip${p.plumeMode === id ? " on" : ""}`} onClick={() => p.onPlumeMode(id)}>
-                {lab}
-              </button>
-            ))}
-          </div>
-          <label className="field" style={{ marginTop: 14 }}>
-            <span>tank pressure</span>
-            <DraftNumber
-              value={p.pTank}
-              min={P_TANK_MIN}
-              max={P_TANK_MAX}
-              step={0.1}
-              aria-label="tank pressure"
-              onCommit={(n) => p.onPTank(n)}
-            />
-            <span className="field-hint">Pa · background the jet expands into (0.1–5000)</span>
-          </label>
-          {p.kn != null && (
-            <div className="kn">
-              Kn_exit = {p.kn.toPrecision(3)}
-              {p.plumeSolvedMode ? `  →  ${p.plumeSolvedMode}` : ""}
-              {p.npr != null ? (
-                <>
-                  <br />
-                  NPR = p_e / p_tank = {fmtFixed(p.npr, 2)}
-                  {p.regime ? `  ·  ${p.regime}` : ""}
-                </>
-              ) : null}
-            </div>
-          )}
-          <div className="h-label">Object</div>
-          <div className="object-probe-row">
-            <div className="chips" role="group" aria-label="Object">
-              <button
-                className={`chip${p.objectKind === "none" ? " on" : ""}`}
-                onClick={() => p.onObject("none")}
-              >
-                None
-              </button>
-              <button
-                className={`chip${p.objectKind === "disk" ? " on" : ""}`}
-                onClick={() => p.onObject("disk")}
-              >
-                Probe
-              </button>
-            </div>
-            {p.objectKind === "disk" && (
-              <div className="disk-row disk-row-setup">
-                <label className="disk-field">
-                  probe R
-                  <DraftNumber
-                    value={p.diskR}
-                    min={DISK_R_MM_MIN}
-                    max={DISK_R_MM_MAX}
-                    step={1}
-                    aria-label="Probe radius in millimetres"
-                    onCommit={(n) => p.onDiskR(clampDiskRmm(n))}
-                  />
-                  <span>mm</span>
-                </label>
-                <label className="disk-field">
-                  Tw
-                  <DraftNumber
-                    value={p.diskTw}
-                    min={200}
-                    max={2000}
-                    step={10}
-                    aria-label="Probe wall temperature in kelvin"
-                    onCommit={(n) => p.onDiskTw(clampProbeTw(n))}
-                  />
-                  <span>K</span>
-                </label>
-              </div>
-            )}
-          </div>
-          {p.objectKind === "disk" ? (
-            <div className="field-hint" style={{ marginTop: 8 }}>
-              Centerline calorimeter, not the Mach disk. Tap the jet for station (x, y); the plate uses that same x.
-              After Run the station grid shows p_probe, q_probe, and Kn_obj.
-            </div>
-          ) : (
-            <div className="field-hint" style={{ marginTop: 8 }}>
-              Empty jet — no probe. Mach disk still draws in Advanced when shocks apply.
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="h-label">Plume</div>
-          <div className="locked-note">
-            <div className="title">Thesis: collisionless jet</div>
-            <p>
-              Khasawneh–Cai 2-D planar free-molecular map from a frozen CEA exit. Auto and sudden-freeze stay off. Tap
-              Plume for an (x, y) field station — no probe.
-            </p>
-          </div>
-        </>
-      )}
+      <div className="h-label">Plume</div>
+      <div className="locked-note">
+        <div className="title">Collisionless 2-D planar jet</div>
+        <p>
+          Khasawneh–Cai 2-D planar free-molecular map from a frozen CEA exit. Tap Plume for an (x, y) field station.
+        </p>
+      </div>
 
       <div className="share-row">
-        <CopyLink href={p.shareHref} mentionDisk={advanced && p.objectKind === "disk"} />
+        <CopyLink href={p.shareHref} />
       </div>
     </div>
   );
 }
 
-function MixEditor({ mix, onChange }: { mix: CustomMix; onChange: (mix: CustomMix) => void }) {
-  const sum = mixtureSum(mix);
-  return (
-    <div className="mix-editor">
-      <div className="mix-grid">
-        {CUSTOM_SPECIES.map((s) => (
-          <label className="field" key={s}>
-            {s}
-            <DraftNumber
-              value={mix[s]}
-              min={0}
-              max={1}
-              step={0.01}
-              aria-label={`${s} mole fraction`}
-              onCommit={(n) => onChange({ ...mix, [s]: n })}
-            />
-          </label>
-        ))}
-      </div>
-      <div className={`mix-sum${sum <= 0 ? " bad" : ""}`}>
-        {sum <= 0 ? "Enter at least one mole fraction." : `Σ ${fmtFixed(sum, 3)} · mole fraction (0–1)`}
-      </div>
-      <p className="field-hint">Positive fractions normalize to 1 on Run. Zeros are omitted.</p>
-    </div>
-  );
-}
-
-function CopyLink({ href, mentionDisk }: { href: string; mentionDisk: boolean }) {
+function CopyLink({ href }: { href: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   return (
     <>
@@ -386,9 +216,7 @@ function CopyLink({ href, mentionDisk }: { href: string; mentionDisk: boolean })
       >
         {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy link"}
       </button>
-      <span className="field-hint">
-        {mentionDisk ? "Same generator, gas, and probe. They tap Run." : "Same generator, gas, and physics. They tap Run."}
-      </span>
+      <span className="field-hint">Same generator, gas, and collisionless jet. They tap Run.</span>
     </>
   );
 }

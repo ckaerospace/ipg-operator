@@ -19,7 +19,6 @@ import {
   estimateKnObj,
   faceMatchesSolve,
   fmtTankPa,
-  KN_OBJ_TRIGGER,
   parseBarrel,
   parsePlumeProbe,
   regimeFromKnObj,
@@ -27,7 +26,7 @@ import {
   tankPaToSlider,
   TANK_SLIDER_STEPS,
 } from "../physics";
-import { ADVANCED_REF_IDS } from "../refs";
+import { THESIS_REF_IDS } from "../refs";
 import type { FieldId, SolveResponse } from "../types";
 import { DraftNumber } from "./DraftNumber";
 import { BugReportLink, ManualLink, RefsList } from "./RefsList";
@@ -426,47 +425,24 @@ export function PlumeTab({
           <div className="legend-inline">
             <p>
               T0 is the frozen nozzle-exit translational temperature (CEA station 4), not the chamber. U0 is the frozen
-              exit bulk velocity. Thesis is the Khasawneh–Cai 2-D planar collisionless jet, mirrored about y = 0 for
-              display — not axisymmetric. Color is a bilinear
-              sample of the selected field on the nx×ny grid; faint n/n0 is masked so the far field stays dark. Thin
-              isolines are marching squares of that same grid. Levels are ~10–12 1–2–5 steps of the selected field in
-              the current millimetre window (log decades if that window spans more than 10×). Pinch packs more curves
-              in the visible span — the colorbar stays the full-field range. Pinch zooms the millimetre map about the
-              pinch; two-finger drag pans. Double-tap
-              or Reset returns to the fitted jet. Isoline labels reflow on the current window and skip collisions;
-              they are not capped at 5. This does
-              not re-run CEA. E is
-              directed ½ m U² in eV; E_O is the O-atom share of that directed energy; e_th is 1.5 kT.
+              exit bulk velocity. The jet is the Khasawneh–Cai 2-D planar collisionless map, mirrored about y = 0 for
+              display — not axisymmetric. Color is a bilinear sample of the selected field on the nx×ny grid; faint
+              n/n0 is masked so the far field stays dark. Thin isolines are marching squares of that same grid. Levels
+              are ~10–12 1–2–5 steps of the selected field in the current millimetre window (log decades if that window
+              spans more than 10×). Pinch packs more curves in the visible span — the colorbar stays the full-field
+              range. Pinch zooms the millimetre map about the pinch; two-finger drag pans. Double-tap or Reset returns
+              to the fitted jet. Isoline labels reflow on the current window and skip collisions; they are not capped
+              at 5. This does not re-run CEA. E is directed ½ m U² in eV; E_O is the O-atom share of that directed
+              energy; e_th is 1.5 kT.
             </p>
             <p>
-              Station: tap anywhere on the plume — Thesis or Advanced, Object None or Probe. That pick is a field
-              sample at (x, y), not a probe and not a Mach disk. Incident T, n, U, M, Kn, E, p_ram, and q_inc update
-              at (x, |y|). p_ram = n m U² and q_inc = ½ n m U³ are free-stream fluxes, not plate-face numbers.
-              p_probe (plate face pressure) and q_probe (plate heat flux) appear only for Advanced Object Probe after
-              Run at the tap’s x on the centerline plate — not tank p_∞ and not a field sample. Thesis
-              has no probe chrome. Tap sets station (x, y); a pick near the axis snaps y to 0. Station x and y are
-              typed millimetres in this grid — not a second editor above the jet. Advanced Object Probe uses that
-              same x for the centerline plate; probe R and Tw stay on Setup. Kn_obj = λ / (2R); kinetic if
-              Kn_obj ≥ {KN_OBJ_TRIGGER} (Khasawneh diffuse plate), continuum
-              otherwise (Billig / Newtonian + stagnation heat). The Mach disk is a free-jet shock and is independent
-              of the probe.
+              Station: tap anywhere on the plume. That pick is a field sample at (x, y). Incident T, n, U, M, Kn, E,
+              p_ram, and q_inc update at (x, |y|). p_ram = n m U² and q_inc = ½ n m U³ are free-stream fluxes. Tap sets
+              station (x, y); a pick near the axis snaps y to 0. Station x and y are typed millimetres in this grid —
+              not a second editor above the jet.
             </p>
-            {advanced && (
-              <>
-                <p>
-                  Advanced: Auto switches at Kn_exit = 0.05. NPR = p_e / p_tank. The log slider under the figure is
-                  tank pressure / p_∞ (0.1–5000 Pa); it stays in sync with Setup’s number field and debounces a solve
-                  so barrel and Mach disk can move. Collisionless Physics ignores p_tank in the kernel — the slider
-                  may still refresh NPR if the API returns it, but this app never invents a Mach disk. When
-                  shock_applied, barrel (pale dashed outline) and Mach disk (bright gold chord) are a stroke overlay —
-                  the bilinear field is not tinted with shock colors. The canvas caption is “shock overlay”. Station
-                  (green pick), probe plate, and Mach disk are three different marks. Thesis never draws this overlay.
-                  A thin bow is drawn when bow_xy is present.
-                </p>
-                <p className="refs-head">References</p>
-                <RefsList compact ids={ADVANCED_REF_IDS} />
-              </>
-            )}
+            <p className="refs-head">References</p>
+            <RefsList compact ids={THESIS_REF_IDS} />
             <p>
               <ManualLink />
               {" · "}

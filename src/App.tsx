@@ -18,7 +18,6 @@ import {
   pinjLimits,
 } from "./facility";
 import {
-  emptyCustomMix,
   encodeMixParam,
   isNamedGas,
   mixLabel,
@@ -28,7 +27,7 @@ import {
   type CustomMix,
 } from "./mixture";
 import { coupledPowerW, fmt, fmtFixed, fmtMdot, fmtN0, fmtPower } from "./format";
-import { operatorLayer, readLayer, writeLayer, type AppLayer } from "./layer";
+import { writeLayer, type AppLayer } from "./layer";
 import {
   clampDiskRmm,
   clampProbeTw,
@@ -83,34 +82,32 @@ type SolveOverride = {
 
 function readBoot(): Boot {
   const share = parseShareSearch(typeof window === "undefined" ? "" : window.location.search);
-  const stored = operatorLayer(readLayer());
-  const layer = share.layer ?? stored;
-  if (share.layer) writeLayer(share.layer);
-  const facility: FacilityId = share.facility ?? "IPG6-S";
+  writeLayer("thesis");
+  const layer = "thesis" as const;
+  const facility: FacilityId =
+    share.facility && share.facility !== "Custom" ? share.facility : "IPG6-S";
   const d = defaultPoint(facility);
   const meta = FACILITY_META[facility];
   const family = axisFamily(facility, meta.dt);
   const coerced = coerceOperatingPoint(family, share.pinj ?? d.pinj, share.mdot ?? d.mdot_mg_s);
   const obj = hydrateShareObject(layer, share);
+  const gas: GasId = share.gas && isNamedGas(share.gas) ? share.gas : d.gas;
   return {
     facility,
-    gas: share.gas ?? d.gas,
-    customMix:
-      share.gas === "custom"
-        ? (share.mix ?? emptyCustomMix())
-        : seedCustomMix(mixtureFor(share.gas && isNamedGas(share.gas) ? share.gas : d.gas)),
+    gas,
+    customMix: seedCustomMix(mixtureFor(gas)),
     custom: { dc: meta.dc, dt: meta.dt, de: meta.de },
     mode: share.mode ?? "generator",
-    plumeMode: share.plume ?? "auto",
+    plumeMode: "collisionless",
     pinj: coerced.pinj,
     mdotMg: coerced.mdot_mg_s,
     hinj: clampHinj(share.hinj ?? d.hinj),
     pTank: clampTankPa(share.ptank ?? P_TANK_DEFAULT),
     layer,
-    object: obj.object,
+    object: "none",
     diskX: obj.diskX,
     probeY: obj.probeY,
-    diskR: share.probe_r ?? DISK_R_MM_DEFAULT,
+    diskR: DISK_R_MM_DEFAULT,
     diskTw: PROBE_TW_K,
     autoRun: share.run === true,
   };
@@ -161,16 +158,15 @@ export default function App() {
   const mLim = mdotMgLimits(family);
 
   const applyFacility = (id: FacilityId) => {
+    if (id === "Custom") return;
     setFacility(id);
     const d = defaultPoint(id);
-    if (gas !== "custom" && id !== "Custom") setGas(d.gas);
+    if (gas !== "custom") setGas(d.gas);
     setPinj(d.pinj);
     setMdotMg(d.mdot_mg_s);
     setHinj(clampHinj(d.hinj));
-    if (id !== "Custom") {
-      const m = FACILITY_META[id];
-      setCustom({ dc: m.dc, dt: m.dt, de: m.de });
-    }
+    const m = FACILITY_META[id];
+    setCustom({ dc: m.dc, dt: m.dt, de: m.de });
   };
 
   const applyKnown = (id: string) => {
@@ -188,7 +184,7 @@ export default function App() {
   const activeMixture = resolveMixture(gas, customMix);
 
   const selectGas = (id: GasId) => {
-    if (id === "custom" && isNamedGas(gas)) setCustomMix(seedCustomMix(mixtureFor(gas)));
+    if (!isNamedGas(id)) return;
     setGas(id);
   };
 
@@ -438,9 +434,9 @@ export default function App() {
               setPTank(clampTankPa(p));
             }}
             onKnown={applyKnown}
-            onLayer={(next) => {
-              writeLayer(next);
-              setLayer(next);
+            onLayer={() => {
+              writeLayer("thesis");
+              setLayer("thesis");
             }}
             objectKind={objectKind}
             onObject={setObjectKind}
