@@ -13,19 +13,7 @@ import {
 import { viewsClose } from "../canvas/viewZoom";
 import { cssPoint, pairStats, PlotTouch, wheelScale } from "../gestures/plotTouch";
 import { fmt, fmtFixed, fmtHeatFlux, fmtPa } from "../format";
-import {
-  clampDiskXm,
-  clampProbeYm,
-  estimateKnObj,
-  faceMatchesSolve,
-  fmtTankPa,
-  parseBarrel,
-  parsePlumeProbe,
-  regimeFromKnObj,
-  sliderToTankPa,
-  tankPaToSlider,
-  TANK_SLIDER_STEPS,
-} from "../physics";
+import { clampDiskXm, clampProbeYm } from "../physics";
 import { THESIS_REF_IDS } from "../refs";
 import type { FieldId, SolveResponse } from "../types";
 import { DraftNumber } from "./DraftNumber";
@@ -48,16 +36,10 @@ type Props = {
   dc: number;
   dt: number;
   de: number;
-  advanced: boolean;
-  showDisk: boolean;
-  diskX: number | null;
-  probeY: number;
-  diskR: number;
-  onDiskX: (x: number | null) => void;
-  onProbeY: (y: number) => void;
-  solvedFace: { x: number; r: number } | null;
-  pTank: number;
-  onPTank: (p: number) => void;
+  stationX: number | null;
+  stationY: number;
+  onStationX: (x: number | null) => void;
+  onStationY: (y: number) => void;
 };
 
 export function PlumeTab({
@@ -68,16 +50,10 @@ export function PlumeTab({
   dc,
   dt,
   de,
-  advanced,
-  showDisk,
-  diskX,
-  probeY,
-  diskR,
-  onDiskX,
-  onProbeY,
-  solvedFace,
-  pTank,
-  onPTank,
+  stationX,
+  stationY,
+  onStationX,
+  onStationY,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -85,9 +61,6 @@ export function PlumeTab({
   const fittedRef = useRef<View>(emptyView(dc, dt, de));
   const mapRef = useRef<WorldMap | null>(null);
   const fieldRef = useRef<FieldId>("n_ratio");
-  const diskRef = useRef<{ x: number; r: number } | null>(
-    showDisk && diskX != null ? { x: diskX, r: diskR / 1000 } : null,
-  );
   const touch = useRef(new PlotTouch());
   const pinchView = useRef<View | null>(null);
   const paintRef = useRef<() => void>(() => {});
@@ -97,20 +70,13 @@ export function PlumeTab({
   const probeScrollRef = useRef<HTMLDivElement>(null);
   const [probeOverflow, setProbeOverflow] = useState(false);
   const solveRef = useRef(solve);
-  const advancedRef = useRef(advanced);
 
   useEffect(() => {
     fieldRef.current = field;
   }, [field]);
   useEffect(() => {
-    diskRef.current = showDisk && diskX != null ? { x: diskX, r: diskR / 1000 } : null;
-  }, [showDisk, diskX, diskR]);
-  useEffect(() => {
     solveRef.current = solve;
   }, [solve]);
-  useEffect(() => {
-    advancedRef.current = advanced;
-  }, [advanced]);
 
   useEffect(() => {
     const fitted = solve ? fitView(solve.plume, dc, dt, de) : emptyView(dc, dt, de);
@@ -131,8 +97,6 @@ export function PlumeTab({
       if (wrap.clientWidth < 2 || wrap.clientHeight < 2) return;
       const dpr = canvas.width / Math.max(1, wrap.clientWidth);
       const s = solveRef.current;
-      const disk = diskRef.current;
-      const bow = advancedRef.current && s ? parseBarrel(s.plume.bow_xy) : [];
       const frame = drawPlumeFrame({
         ctx,
         cssW: wrap.clientWidth,
@@ -144,10 +108,7 @@ export function PlumeTab({
         dc,
         dt,
         de,
-        probe: diskX != null ? { x: diskX, y: probeY } : null,
-        disk,
-        bow,
-        showShocks: advancedRef.current,
+        probe: stationX != null ? { x: stationX, y: stationY } : null,
       });
       mapRef.current = frame.map;
     };
@@ -188,7 +149,7 @@ export function PlumeTab({
       ro.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [visible, solve, dc, dt, de, field, advanced, showDisk, diskX, probeY, diskR]);
+  }, [visible, solve, dc, dt, de, field, stationX, stationY]);
 
   const toWorld = (e: PE<HTMLCanvasElement>) => {
     const map = mapRef.current;
@@ -207,8 +168,8 @@ export function PlumeTab({
   const placeStation = (x: number, y: number) => {
     const xmax = solve?.plume.xmax_m;
     const ymax = solve?.plume.ymax_m;
-    onDiskX(clampDiskXm(x, xmax));
-    onProbeY(clampProbeYm(y, ymax));
+    onStationX(clampDiskXm(x, xmax));
+    onStationY(clampProbeYm(y, ymax));
   };
 
   const placeFromPointer = (e: PE<HTMLCanvasElement>) => {
@@ -288,21 +249,8 @@ export function PlumeTab({
     }
   };
 
-  const apiProbe = parsePlumeProbe(solve?.plume.probe);
-  const stationLive = diskX != null;
-  const plateOn = advanced && showDisk;
-  const sample = solve && diskX != null ? sampleProbe(solve, diskX, probeY) : null;
-  const faceReady = plateOn && faceMatchesSolve(solvedFace, diskX, diskR);
-  const knObjApi = faceReady && apiProbe?.Kn_obj != null ? apiProbe.Kn_obj : null;
-  const knObjEst =
-    knObjApi == null && sample && plateOn
-      ? estimateKnObj(sample.kn, solve?.plume.H ?? 0, diskR / 1000)
-      : null;
-  const knObj = knObjApi ?? knObjEst;
-  const regimeApi = faceReady && apiProbe?.regime ? apiProbe.regime : null;
-  const regime = regimeApi ?? (knObj != null ? regimeFromKnObj(knObj) : null);
-  const pVal = faceReady ? (apiProbe?.p_Pa ?? null) : null;
-  const qVal = faceReady ? (apiProbe?.q_W_m2 ?? null) : null;
+  const stationLive = stationX != null;
+  const sample = solve && stationX != null ? sampleProbe(solve, stationX, stationY) : null;
 
   useEffect(() => {
     const el = probeScrollRef.current;
@@ -318,7 +266,7 @@ export function PlumeTab({
       ro.disconnect();
       el.removeEventListener("scroll", measure);
     };
-  }, [visible, stationLive, plateOn, legend, solve]);
+  }, [visible, stationLive, legend, solve]);
 
   return (
     <>
@@ -356,45 +304,24 @@ export function PlumeTab({
           )}
         </div>
       </div>
-      {advanced && (
-        <div className="tank-row">
-          <label htmlFor="ptank-slider">
-            tank pressure / p<sub>∞</sub>
-          </label>
-          <input
-            id="ptank-slider"
-            type="range"
-            min={0}
-            max={TANK_SLIDER_STEPS}
-            step={1}
-            value={tankPaToSlider(pTank)}
-            onChange={(e) => onPTank(sliderToTankPa(Number(e.target.value)))}
-            aria-valuemin={0.1}
-            aria-valuemax={5000}
-            aria-valuenow={pTank}
-            aria-label="tank pressure p infinity"
-          />
-          <span className="tank-val">{fmtTankPa(pTank)}</span>
-        </div>
-      )}
       <div className={`probe-panel${probeOverflow ? " overflow" : ""}`}>
         <div className="probe-scroll" ref={probeScrollRef}>
         <div className="probe-grid">
           <StationMm
             l="x"
-            mm={diskX == null ? null : diskX * 1000}
+            mm={stationX == null ? null : stationX * 1000}
             min={0}
             max={(solve?.plume.xmax_m ?? 2) * 1000}
             ariaLabel="station x millimetres"
-            onCommitMm={(mm) => placeStation(mm / 1000, diskX == null ? 0 : probeY)}
+            onCommitMm={(mm) => placeStation(mm / 1000, stationX == null ? 0 : stationY)}
           />
           <StationMm
             l="y"
-            mm={diskX == null ? null : probeY * 1000}
+            mm={stationX == null ? null : stationY * 1000}
             min={-(solve?.plume.ymax_m ?? 2) * 1000}
             max={(solve?.plume.ymax_m ?? 2) * 1000}
             ariaLabel="station y millimetres"
-            onCommitMm={(mm) => placeStation(diskX ?? 0, mm / 1000)}
+            onCommitMm={(mm) => placeStation(stationX ?? 0, mm / 1000)}
           />
           <Cell l="T" v={sample ? `${fmt(sample.T, 0)} K` : "—"} />
           <Cell l="n/n0" v={sample ? fmtFixed(sample.n_ratio, 3) : "—"} />
@@ -407,20 +334,8 @@ export function PlumeTab({
           <Cell l="h_tot" v={sample ? `${fmt(sample.h_tot, 2)} MJ/kg` : "—"} />
           <Cell l="p_ram" v={sample?.p_ram_Pa == null ? "—" : fmtPa(sample.p_ram_Pa)} />
           <Cell l="q_inc" v={sample?.q_inc_W_m2 == null ? "—" : fmtHeatFlux(sample.q_inc_W_m2)} />
-          {plateOn && (
-            <>
-              <Cell l="p_probe" v={pVal == null ? "—" : fmtPa(pVal)} />
-              <Cell l="q_probe" v={qVal == null ? "—" : fmtHeatFlux(qVal)} />
-              <Cell l="Kn_obj" v={knObj == null ? "—" : knObj.toPrecision(2)} />
-              <Cell l="regime" v={regime ?? "—"} />
-            </>
-          )}
         </div>
-        {stationLive && !(plateOn && !faceReady) ? null : (
-          <div className="probe-hint">
-            {!stationLive ? "Tap the jet to place a station" : "Run to fill p_probe, q_probe"}
-          </div>
-        )}
+        {stationLive ? null : <div className="probe-hint">Tap the jet to place a station</div>}
         {legend && (
           <div className="legend-inline">
             <p>
@@ -430,10 +345,9 @@ export function PlumeTab({
               n/n0 is masked so the far field stays dark. Thin isolines are marching squares of that same grid. Levels
               are ~10–12 1–2–5 steps of the selected field in the current millimetre window (log decades if that window
               spans more than 10×). Pinch packs more curves in the visible span — the colorbar stays the full-field
-              range. Pinch zooms the millimetre map about the pinch; two-finger drag pans. Double-tap or Reset returns
-              to the fitted jet. Isoline labels reflow on the current window and skip collisions; they are not capped
-              at 5. This does not re-run CEA. E is directed ½ m U² in eV; E_O is the O-atom share of that directed
-              energy; e_th is 1.5 kT.
+              range. Pinch zooms the millimetre map about the pinch. Double-tap or Reset returns to the fitted jet.
+              Isoline labels reflow on the current window and skip collisions; they are not capped at 5. This does not
+              re-run CEA. E is directed ½ m U² in eV; E_O is the O-atom share of that directed energy; e_th is 1.5 kT.
             </p>
             <p>
               Station: tap anywhere on the plume. That pick is a field sample at (x, y). Incident T, n, U, M, Kn, E,
