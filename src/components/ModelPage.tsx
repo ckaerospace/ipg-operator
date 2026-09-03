@@ -97,8 +97,8 @@ export function ModelPage() {
           The kernel is the Khasawneh–Cai <b>2-D planar</b> free-molecular map from that frozen CEA exit (Cai &amp;
           Boyd 2007, <a href="https://doi.org/10.2514/1.25893">doi:10.2514/1.25893</a>,{" "}
           <a href="https://doi.org/10.2514/1.32173">doi:10.2514/1.32173</a>; Khasawneh, Liu &amp; Cai 2010,{" "}
-          <a href="https://doi.org/10.1063/1.3490409">doi:10.1063/1.3490409</a>). The chemistry API returns a grid with{" "}
-          <i>y</i> ≥ 0. The full-plume display is a <b>mirror about <i>y</i> = 0</b> of that 2-D solution — not
+          <a href="https://doi.org/10.1063/1.3490409">doi:10.1063/1.3490409</a>).           The chemistry API returns a grid that
+          spans both signs of <i>y</i> (±<i>y</i>). The jet is 2-D planar — not
           axisymmetric, not 3-D.
         </p>
         <p>
@@ -130,7 +130,7 @@ export function ModelPage() {
           {pinjLimits("IPG6-S").max}&nbsp;Pa, IPG4 0–{pinjLimits("IPG4").max}&nbsp;Pa, IPG3 0–
           {pinjLimits("IPG3").max}&nbsp;Pa). Setup sliders use <span className="mono">pinjLimits</span> min–max
           (IPG6-S {IPG6_PINJ.min}–{IPG6_PINJ.max}&nbsp;Pa, IPG4 {IPG4_PINJ.min}–{IPG4_PINJ.max}&nbsp;Pa, IPG3{" "}
-          {IPG3_PINJ.min}–{IPG3_PINJ.max}&nbsp;Pa). Those are not the same, and not the API catalog clip 250/5000/3000.
+          {IPG3_PINJ.min}–{IPG3_PINJ.max}&nbsp;Pa). Those are not the same.
           Extra ṁ and power isolines are
           1–2–5 traces of the same computed <i>k</i>(<i>h</i>)×<i>p</i>
           <sub>inj</sub> identity in the current Map window (~12–16 in that span; pinch fills the window, fitted

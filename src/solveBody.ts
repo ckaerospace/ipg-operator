@@ -18,7 +18,7 @@ export type SolveInput = {
   pinj_Pa: number;
   hinj_MJ_kg: number;
   mdot_mg_s: number;
-  p_tank_Pa: number;
+  p_tank_Pa?: number;
   probe_x_m?: number | null;
   probe_r_mm?: number;
   probe_Tw_K?: number;

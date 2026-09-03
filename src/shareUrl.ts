@@ -1,11 +1,6 @@
 import type { CustomMix } from "./mixture";
 import { emptyCustomMix, encodeMixParam, parseMixParam } from "./mixture";
-import {
-  clampDiskRmm,
-  clampDiskXm,
-  clampProbeYm,
-  clampTankPa,
-} from "./physics";
+import { clampDiskRmm, clampDiskXm, clampProbeYm, clampTankPa } from "./physics";
 import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "./types";
 import { NAMED_GASES } from "./types";
 
@@ -28,7 +23,6 @@ export type SharePoint = {
 };
 
 export type ShareFields = {
-  layer: "thesis" | "advanced";
   facility: FacilityId;
   gas: GasId;
   customMix?: CustomMix;
@@ -36,12 +30,8 @@ export type ShareFields = {
   pinj: number;
   mdot_mg_s: number;
   hinj: number;
-  pTank: number;
-  plumeMode: PlumeMode;
-  object: JetObject;
-  diskX_m: number | null;
-  diskY_m?: number | null;
-  diskR_mm: number;
+  stationX_m: number | null;
+  stationY_m?: number | null;
 };
 
 const FACILITIES: FacilityId[] = ["IPG6-S", "IPG4", "IPG3", "Custom"];
@@ -115,9 +105,9 @@ export function encodeShareSearch(fields: ShareFields): string {
   if (fields.mode === "generator") q.set("mdot", String(fields.mdot_mg_s));
   if (fields.mode === "enthalpy") q.set("hinj", String(fields.hinj));
   q.set("plume", "collisionless");
-  if (fields.diskX_m != null && Number.isFinite(fields.diskX_m)) {
-    q.set("probe_x", String(clampDiskXm(fields.diskX_m)));
-    q.set("probe_y", String(clampProbeYm(fields.diskY_m ?? 0)));
+  if (fields.stationX_m != null && Number.isFinite(fields.stationX_m)) {
+    q.set("probe_x", String(clampDiskXm(fields.stationX_m)));
+    q.set("probe_y", String(clampProbeYm(fields.stationY_m ?? 0)));
   }
   return q.toString();
 }
@@ -154,12 +144,9 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 /** Station x/y come from probe_x / probe_y. Thesis has no calorimeter plate. */
-export function hydrateShareObject(
-  _layer: "thesis" | "advanced",
-  share: SharePoint,
-): { object: JetObject; diskX: number | null; probeY: number } {
-  const probeY = share.probe_y != null && Number.isFinite(share.probe_y) ? share.probe_y : 0;
-  return { object: "none", diskX: share.probe_x ?? null, probeY };
+export function hydrateShareObject(share: SharePoint): { stationX: number | null; stationY: number } {
+  const stationY = share.probe_y != null && Number.isFinite(share.probe_y) ? share.probe_y : 0;
+  return { stationX: share.probe_x ?? null, stationY };
 }
 
 export function shareHasFields(p: SharePoint): boolean {

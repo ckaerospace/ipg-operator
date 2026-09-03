@@ -52,7 +52,7 @@ function fakeSolve(over: Partial<SolveResponse["cea"]> = {}): SolveResponse {
 
 describe("header strip", () => {
   it("shows n0 and power after hinj, never a p/pinj key", () => {
-    const rows = stripItems(fakeSolve(), "IPG6-S", 10, false, null);
+    const rows = stripItems(fakeSolve(), "IPG6-S", null);
     const keys = rows.map((r) => r.k);
     expect(keys.slice(0, 4)).toEqual(["hinj", "n0", "power", "T_exit"]);
     expect(keys).toContain("ṁ");
@@ -69,7 +69,7 @@ describe("header strip", () => {
   it("falls back to ṁ × hinj when power_W is missing", () => {
     const cea = fakeSolve().cea;
     delete cea.power_W;
-    const rows = stripItems(fakeSolve({ ...cea, power_W: undefined }), "IPG6-S", 10, false, null);
+    const rows = stripItems(fakeSolve({ ...cea, power_W: undefined }), "IPG6-S", null);
     const power = rows.find((r) => r.k === "power");
     expect(power?.k).toBe("power");
     expect(power?.v).toMatch(/W/);

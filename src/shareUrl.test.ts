@@ -3,18 +3,13 @@ import { encodeShareSearch, hydrateShareObject, parseShareSearch, shareUrl } fro
 import type { ShareFields } from "./shareUrl";
 
 const fields: ShareFields = {
-  layer: "thesis",
   facility: "IPG4",
   gas: "CO2",
   mode: "generator",
   pinj: 2900,
   mdot_mg_s: 2200,
   hinj: 17.4,
-  pTank: 10,
-  plumeMode: "auto",
-  object: "disk",
-  diskX_m: 0.12,
-  diskR_mm: 20,
+  stationX_m: 0.12,
 };
 
 describe("share URL", () => {
@@ -54,11 +49,7 @@ describe("share URL", () => {
   it("forces Advanced shares onto Thesis and drops tank, object, and freeze", () => {
     const q = encodeShareSearch({
       ...fields,
-      layer: "advanced",
-      plumeMode: "sudden_freeze",
-      pTank: 40,
-      object: "none",
-      diskX_m: null,
+      stationX_m: null,
     });
     const parsed = parseShareSearch(`?${q}`);
     expect(q).toContain("layer=thesis");
@@ -75,21 +66,21 @@ describe("share URL", () => {
   });
 
   it("omits probe_r even when a station is placed", () => {
-    const q = encodeShareSearch({ ...fields, layer: "thesis", diskR_mm: 40 });
+    const q = encodeShareSearch({ ...fields });
     expect(q).toContain("probe_x=0.12");
     expect(q).toContain("probe_y=0");
     expect(q).not.toContain("probe_r=");
   });
 
   it("round-trips probe_y with probe_x", () => {
-    const q = encodeShareSearch({ ...fields, diskY_m: 0.04 });
+    const q = encodeShareSearch({ ...fields, stationY_m: 0.04 });
     expect(q).toContain("probe_x=0.12");
     expect(q).toContain("probe_y=0.04");
     expect(parseShareSearch(`?${q}`).probe_y).toBeCloseTo(0.04);
   });
 
   it("does not persist Object Disk", () => {
-    const q = encodeShareSearch({ ...fields, layer: "advanced", object: "disk" });
+    const q = encodeShareSearch({ ...fields });
     const parsed = parseShareSearch(`?${q}`);
     expect(q).not.toContain("object=");
     expect(q).not.toContain("probe_r=");
@@ -98,8 +89,8 @@ describe("share URL", () => {
     expect(parsed.probe_r).toBeUndefined();
   });
 
-  it("omits the disk when it is not placed", () => {
-    const q = encodeShareSearch({ ...fields, diskX_m: null });
+  it("omits the station when it is not placed", () => {
+    const q = encodeShareSearch({ ...fields, stationX_m: null });
     expect(q).not.toContain("probe_x=");
     expect(q).not.toContain("probe_y=");
     expect(q).not.toContain("probe_r=");
@@ -135,11 +126,10 @@ describe("share URL", () => {
   });
 
   it("restores the station from probe_x / probe_y and never a plate", () => {
-    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).diskX).toBe(0.12);
-    expect(hydrateShareObject("thesis", { probe_x: 0.12, probe_y: 0.03 }).probeY).toBe(0.03);
-    expect(hydrateShareObject("thesis", { probe_x: 0.12 }).object).toBe("none");
-    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).object).toBe("none");
-    expect(hydrateShareObject("advanced", { object: "disk", probe_x: 0.08 }).diskX).toBe(0.08);
+    expect(hydrateShareObject({ probe_x: 0.12, probe_y: 0.03 }).stationX).toBe(0.12);
+    expect(hydrateShareObject({ probe_x: 0.12, probe_y: 0.03 }).stationY).toBe(0.03);
+    expect(hydrateShareObject({ probe_x: 0.12 }).stationY).toBe(0);
+    expect(hydrateShareObject({ object: "disk", probe_x: 0.08 }).stationX).toBe(0.08);
   });
 
   it("builds from the live origin", () => {

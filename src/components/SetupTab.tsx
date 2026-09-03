@@ -10,11 +10,10 @@ import {
   type AxisFamily,
 } from "../facility";
 import { fmtFixed, fmtMdot, fmtPinjPa } from "../format";
-import type { AppLayer } from "../layer";
 import { CUSTOM_SPECIES, mixtureSum, type CustomMix } from "../mixture";
 import { PINJ_SLIDER_STEPS, pinjPaToSlider, sliderToPinjPa } from "../physics";
 import { copyText } from "../shareUrl";
-import type { FacilityId, GasId, JetObject, PlumeMode, SolveMode } from "../types";
+import type { FacilityId, GasId, SolveMode } from "../types";
 import { DraftNumber } from "./DraftNumber";
 import { LayerBar } from "./LayerBar";
 
@@ -24,37 +23,21 @@ type Props = {
   customMix: CustomMix;
   custom: { dc: number; dt: number; de: number };
   mode: SolveMode;
-  plumeMode: PlumeMode;
   pinj: number;
   mdot_mg_s: number;
   hinj: number;
-  pTank: number;
   family: AxisFamily;
   pinjLim: { min: number; max: number; step: number };
   mdotLim: { min: number; max: number };
-  kn: number | null;
-  plumeSolvedMode: string | null;
-  npr: number | null;
-  regime: string | null;
-  layer: AppLayer;
   onFacility: (id: FacilityId) => void;
   onGas: (id: GasId) => void;
   onCustomMix: (mix: CustomMix) => void;
   onCustom: (patch: Partial<{ dc: number; dt: number; de: number }>) => void;
   onMode: (m: SolveMode) => void;
-  onPlumeMode: (m: PlumeMode) => void;
   onPinj: (v: number) => void;
   onMdot: (mg: number) => void;
   onHinj: (v: number) => void;
-  onPTank: (v: number) => void;
   onKnown: (id: string) => void;
-  onLayer: (layer: "thesis" | "advanced") => void;
-  objectKind: JetObject;
-  onObject: (kind: JetObject) => void;
-  diskR: number;
-  diskTw: number;
-  onDiskR: (r: number) => void;
-  onDiskTw: (t: number) => void;
   shareHref: string;
 };
 
@@ -70,7 +53,7 @@ export function SetupTab(p: Props) {
 
   return (
     <div className="scroll">
-      <LayerBar current={p.layer === "manual" ? "thesis" : p.layer} />
+      <LayerBar current="thesis" />
 
       <div className="h-label">Generator</div>
       <div className="chips">
