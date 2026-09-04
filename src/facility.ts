@@ -57,6 +57,7 @@ export const GASES: { id: NamedGasId; label: string; mixture: Mixture }[] = [
   { id: "Air", label: "Air (0.79/0.21)", mixture: { N2: 0.79, O2: 0.21 } },
   { id: "HeO2", label: "He/O2 70/30", mixture: { He: 0.7, O2: 0.3 } },
   { id: "Ar", label: "Ar", mixture: { Ar: 1 } },
+  { id: "CF4", label: "CF4", mixture: { CF4: 1 } },
 ];
 
 export function mixtureFor(gas: NamedGasId): Mixture {

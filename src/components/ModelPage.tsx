@@ -63,8 +63,9 @@ export function ModelPage() {
         <h2>1. What the operator sets</h2>
         <p>
           Generator (IPG6-S, IPG4, IPG3, or Custom Dc / Dt / De) and gas fix the nozzle and the mixture sent to CEA.
-          Named gases are O2, CO2, N2, Air, HeO2, and Ar. Custom gas is a mole mix of O2, N2, CO2, He, and Ar — not a
-          new solver. H2 and CH4 are not in the phone editor.
+          Named gases are O2, CO2, N2, Air, HeO2, Ar, and CF4. Custom gas is a mole mix of O2, N2, CO2, He, Ar, and
+          CF4 — not a new solver. H2 and CH4 are not in the phone editor. CF4 is a CEA reactant chip, not a new
+          facility.
         </p>
         <p>
           A point is chamber pressure <i>p</i>

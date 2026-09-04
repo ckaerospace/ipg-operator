@@ -1,6 +1,6 @@
 export type FacilityId = "IPG6-S" | "IPG4" | "IPG3" | "Custom";
 export type TabId = "setup" | "plume" | "map";
-export const NAMED_GASES = ["O2", "CO2", "N2", "Air", "HeO2", "Ar"] as const;
+export const NAMED_GASES = ["O2", "CO2", "N2", "Air", "HeO2", "Ar", "CF4"] as const;
 export type NamedGasId = (typeof NAMED_GASES)[number];
 /** Named IPG presets plus the mole-fraction editor. Not a Custom nozzle. */
 export type GasId = NamedGasId | "custom";

@@ -2,7 +2,7 @@ import { mixtureFor } from "./facility";
 import type { GasId, Mixture, NamedGasId } from "./types";
 
 /** Stuttgart IPG editor species. No H2/CH4/NH3. */
-export const CUSTOM_SPECIES = ["O2", "N2", "CO2", "He", "Ar"] as const;
+export const CUSTOM_SPECIES = ["O2", "N2", "CO2", "He", "Ar", "CF4"] as const;
 export type CustomSpecies = (typeof CUSTOM_SPECIES)[number];
 export type CustomMix = Record<CustomSpecies, number>;
 
@@ -11,7 +11,7 @@ export function isNamedGas(gas: GasId): gas is NamedGasId {
 }
 
 export function emptyCustomMix(): CustomMix {
-  return { O2: 0, N2: 0, CO2: 0, He: 0, Ar: 0 };
+  return { O2: 0, N2: 0, CO2: 0, He: 0, Ar: 0, CF4: 0 };
 }
 
 export function seedCustomMix(from: Mixture): CustomMix {

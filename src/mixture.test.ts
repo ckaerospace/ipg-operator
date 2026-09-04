@@ -28,7 +28,7 @@ const solveBase = {
 
 describe("normalizeMixture", () => {
   it("normalizes positive fractions to 1 and omits zeros", () => {
-    const n = normalizeMixture({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 });
+    const n = normalizeMixture({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0, CF4: 0 });
     expect(n).toEqual({ O2: 0.3, He: 0.7 });
     expect(Object.keys(n!)).toEqual(["O2", "He"]);
   });
@@ -39,13 +39,13 @@ describe("normalizeMixture", () => {
   });
 
   it("scales unnormalized positives", () => {
-    const n = normalizeMixture({ O2: 1, N2: 1, CO2: 0, He: 0, Ar: 0 });
+    const n = normalizeMixture({ O2: 1, N2: 1, CO2: 0, He: 0, Ar: 0, CF4: 0 });
     expect(n).toEqual({ O2: 0.5, N2: 0.5 });
   });
 
   it("returns null when the sum is 0", () => {
     expect(normalizeMixture(emptyCustomMix())).toBeNull();
-    expect(normalizeMixture({ O2: 0, N2: -1, CO2: Number.NaN, He: 0, Ar: 0 })).toBeNull();
+    expect(normalizeMixture({ O2: 0, N2: -1, CO2: Number.NaN, He: 0, Ar: 0, CF4: 0 })).toBeNull();
     expect(mixtureSum(emptyCustomMix())).toBe(0);
   });
 });
@@ -60,8 +60,22 @@ describe("mix share tokens", () => {
 
   it("ignores H2 and other non-IPG species", () => {
     const parsed = parseMixParam("H2:0.5,O2:0.5,CH4:0.1");
-    expect(parsed).toEqual({ O2: 0.5, N2: 0, CO2: 0, He: 0, Ar: 0 });
+    expect(parsed).toEqual({ O2: 0.5, N2: 0, CO2: 0, He: 0, Ar: 0, CF4: 0 });
     expect(parseMixParam("H2:1,NH3:1")).toBeNull();
+  });
+
+  it("keeps CF4 in mix= and does not treat it as unknown", () => {
+    const seeded = seedCustomMix({ CF4: 1 });
+    expect(encodeMixParam(seeded)).toBe("CF4:1");
+    expect(parseMixParam("CF4:1")).toEqual(seeded);
+    expect(parseMixParam("O2:0.5,CF4:0.5")).toEqual({
+      O2: 0.5,
+      N2: 0,
+      CO2: 0,
+      He: 0,
+      Ar: 0,
+      CF4: 0.5,
+    });
   });
 });
 
@@ -73,6 +87,7 @@ describe("preset mixtures", () => {
     expect(mixtureFor("Air")).toEqual({ N2: 0.79, O2: 0.21 });
     expect(mixtureFor("HeO2")).toEqual({ He: 0.7, O2: 0.3 });
     expect(mixtureFor("Ar")).toEqual({ Ar: 1 });
+    expect(mixtureFor("CF4")).toEqual({ CF4: 1 });
     for (const g of GASES) {
       const body = buildSolveBody({ ...solveBase, mixture: resolveMixture(g.id, emptyCustomMix())! });
       expect(body.mixture).toEqual(g.mixture);
@@ -82,7 +97,7 @@ describe("preset mixtures", () => {
 
   it("seeds Custom from a preset and normalizes that seed", () => {
     const seeded = seedCustomMix(mixtureFor("HeO2"));
-    expect(seeded).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 });
+    expect(seeded).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0, CF4: 0 });
     expect(resolveMixture("custom", seeded)).toEqual({ O2: 0.3, He: 0.7 });
     expect(mixLabel({ O2: 0.3, He: 0.7 })).toBe("O2 0.30 · He 0.70");
   });

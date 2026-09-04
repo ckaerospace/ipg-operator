@@ -140,19 +140,28 @@ describe("share URL", () => {
     const q = encodeShareSearch({
       ...fields,
       gas: "custom",
-      customMix: { O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 },
+      customMix: { O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0, CF4: 0 },
     });
     expect(q).toContain("gas=custom");
     expect(q).toContain("mix=O2%3A0.3%2CHe%3A0.7");
     const parsed = parseShareSearch(`?${q}`);
     expect(parsed.gas).toBe("custom");
-    expect(parsed.mix).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0 });
+    expect(parsed.mix).toEqual({ O2: 0.3, N2: 0, CO2: 0, He: 0.7, Ar: 0, CF4: 0 });
     expect(parseShareSearch("?gas=custom&mix=He:0.7,O2:0.3").mix).toEqual({
       O2: 0.3,
       N2: 0,
       CO2: 0,
       He: 0.7,
       Ar: 0,
+      CF4: 0,
+    });
+    expect(parseShareSearch("?gas=custom&mix=CF4:1").mix).toEqual({
+      O2: 0,
+      N2: 0,
+      CO2: 0,
+      He: 0,
+      Ar: 0,
+      CF4: 1,
     });
     const named = encodeShareSearch(fields);
     expect(named).toContain("gas=CO2");
