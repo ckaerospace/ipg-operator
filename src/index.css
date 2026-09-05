@@ -216,6 +216,9 @@ select {
 }
 .paper-layers {
   flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   padding: 10px 12px 0;
 }
 .chips {
@@ -739,6 +742,8 @@ select {
 .refs {
   margin: 0 0 10px;
   padding-left: 1.2em;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 .refs li {
   margin: 0 0 6px;
@@ -766,11 +771,24 @@ select {
   flex-direction: column;
   padding-bottom: var(--safe-b);
 }
+/* Model only: flex min-width:auto was sizing .paper-body to KaTeX/SVG
+   min-content (~486px) inside a 390px viewport. html/body/#root stay
+   overflow:hidden for Setup/Plume/Map, so the paper column must shrink
+   and scroll its own body instead of clipping the right edge. */
+.paper.paper-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
 .paper-bar {
   flex: 0 0 var(--header-h);
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  max-width: 100%;
   padding: 0 16px;
   padding-top: var(--safe-t);
   border-bottom: 1px solid var(--line);
@@ -786,28 +804,36 @@ select {
 .paper-body {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: min(42rem, 100%);
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-y;
-  max-width: 42rem;
+  touch-action: pan-x pan-y;
   margin: 0 auto;
   padding: 20px 16px 48px;
   line-height: 1.5;
   font-size: 15px;
+  overflow-wrap: break-word;
 }
 .paper-body h1 {
   font-size: 1.55rem;
   letter-spacing: 0.02em;
   margin: 0 0 10px;
+  max-width: 100%;
 }
 .paper-body h2 {
   font-size: 1.05rem;
   margin: 1.4em 0 0.45em;
+  max-width: 100%;
 }
 .paper-body p,
 .paper-body ul {
   margin: 0 0 0.75em;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 .paper-body ul {
   padding-left: 1.2em;
@@ -818,9 +844,10 @@ select {
 }
 .paper-body .eq {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   font-size: 15.5px;
   text-align: center;
   padding: 10px 2.2rem 12px 0.4rem;
@@ -828,6 +855,7 @@ select {
   overflow-y: hidden;
   color: var(--text);
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 .paper-body .eq .katex,
 .paper-body .eq-inline .katex {
@@ -835,9 +863,14 @@ select {
 }
 .paper-body .eq .katex-display {
   margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .paper-body .eq-math {
+  width: max-content;
+  max-width: none;
   min-width: 0;
+  margin-inline: auto;
 }
 .paper-body .eq-num {
   position: absolute;
@@ -849,8 +882,13 @@ select {
   font-variant-numeric: tabular-nums;
 }
 .paper-body .eq-inline {
-  display: inline;
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  vertical-align: middle;
   color: var(--text);
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 .paper-body .eq-inline .katex {
   font-size: 1.02em;
@@ -861,12 +899,15 @@ select {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px 10px 10px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 .paper-body .fig svg {
   display: block;
   width: 100%;
   height: auto;
-  max-width: 36rem;
+  max-width: 100%;
   margin: 0 auto;
 }
 .paper-body .fig-cap {
@@ -875,6 +916,8 @@ select {
   line-height: 1.4;
   font-style: normal;
   margin: 0.55em 2px 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 .paper-body figure.fig {
   margin: 1.15em 0 1.2em;
@@ -882,6 +925,7 @@ select {
 .paper-body .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.92em;
+  overflow-wrap: anywhere;
 }
 .paper-foot {
   margin-top: 1.5em;
