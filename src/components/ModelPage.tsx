@@ -27,7 +27,7 @@ export function ModelPage() {
     document.title = "Plasma wind tunnel · Model";
   }, []);
   return (
-    <div className="paper">
+    <div className="paper paper-scroll">
       <header className="paper-bar">
         <a
           href="/"
