@@ -116,20 +116,28 @@ export function FigSlit() {
   const axisEnd = ox + 430;
   const th1 = Math.atan2(Y - H, X);
   const th2 = Math.atan2(Y + H, X);
-  const rArc = 78;
-  const a1x = ox + rArc * Math.cos(th1);
-  const a1y = oy - rArc * Math.sin(th1);
-  const a2x = ox + rArc * Math.cos(th2);
-  const a2y = oy - rArc * Math.sin(th2);
-  const arc1 = `M ${ox + rArc} ${oy} A ${rArc} ${rArc} 0 0 ${th1 > 0 ? 0 : 1} ${a1x} ${a1y}`;
-  const arc2 = `M ${ox + rArc} ${oy} A ${rArc} ${rArc} 0 0 0 ${a2x} ${a2y}`;
+  const r1 = 54;
+  const r2 = 54;
+  const arcAt = (lx: number, ly: number, th: number, r: number) => {
+    const x1 = lx + r;
+    const y1 = ly;
+    const x2 = lx + r * Math.cos(th);
+    const y2 = ly - r * Math.sin(th);
+    const large = Math.abs(th) > Math.PI ? 1 : 0;
+    const sweep = th > 0 ? 0 : 1;
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${large} ${sweep} ${x2} ${y2}`;
+  };
+  const t1x = upX + (r1 + 14) * Math.cos(th1 / 2);
+  const t1y = upY - (r1 + 14) * Math.sin(th1 / 2);
+  const t2x = loX + (r2 + 16) * Math.cos(th2 / 2);
+  const t2y = loY - (r2 + 16) * Math.sin(th2 / 2);
 
   return (
     <FigFrame
       id="fig-slit"
       title="Planar slit of half-height H with viewing angles theta1 and theta2"
       viewBox="0 0 640 310"
-      caption="Fig. 2. 2-D planar slit. Half-height H = De/2 (round IPG exit applied as a slit). From a field point (X, Y) the lips are at angles θ1 = atan2(Y − H, X) and θ2 = atan2(Y + H, X). The jet is planar, not axisymmetric. Downstream only: X > 0."
+      caption="Fig. 2. 2-D planar slit. Half-height H = De/2 (round IPG exit applied as a slit). From a field point (X, Y) the lips are at angles θ1 = atan2(Y − H, X) and θ2 = atan2(Y + H, X), each measured from +X at that lip. The jet is planar, not axisymmetric. Downstream only: X > 0."
     >
       <line x1={ox - 24} y1={oy} x2={axisEnd} y2={oy} stroke={AXIS} strokeWidth="1.1" />
       <line x1={ox} y1={oy - 128} x2={ox} y2={oy + 128} stroke={AXIS} strokeWidth="1.1" />
@@ -148,22 +156,23 @@ export function FigSlit() {
         +H
       </text>
       <text x={ox - 16} y={loY + 16} textAnchor="end" fill={TEAL} fontFamily={FONT} fontSize="13">
-        −H
+        -H
       </text>
-      <text x={ox + 14} y={(upY + loY) / 2 + 5} fill={TEAL} fontFamily={FONT} fontSize="12">
+      <text x={ox + 16} y={oy - 6} fill={TEAL} fontFamily={FONT} fontSize="12">
         slit
       </text>
 
+      <line x1={upX} y1={upY} x2={upX + 70} y2={upY} stroke={GRID} strokeWidth="1" strokeDasharray="3 3" />
+      <line x1={loX} y1={loY} x2={loX + 70} y2={loY} stroke={GRID} strokeWidth="1" strokeDasharray="3 3" />
       <line x1={upX} y1={upY} x2={px} y2={py} stroke={INK} strokeWidth="1.35" />
       <line x1={loX} y1={loY} x2={px} y2={py} stroke={INK} strokeWidth="1.35" />
-      <line x1={ox} y1={oy} x2={px} y2={py} stroke={GRID} strokeWidth="1" strokeDasharray="4 3" />
 
-      <path d={arc1} fill="none" stroke={TEAL} strokeWidth="1.4" />
-      <path d={arc2} fill="none" stroke={TEAL} strokeWidth="1.4" />
-      <text x={ox + 96} y={oy - 10} fill={TEAL} fontFamily={FONT} fontSize="14">
+      <path d={arcAt(upX, upY, th1, r1)} fill="none" stroke={TEAL} strokeWidth="1.5" />
+      <path d={arcAt(loX, loY, th2, r2)} fill="none" stroke={TEAL} strokeWidth="1.5" />
+      <text x={t1x + 4} y={t1y + 4} fill={TEAL} fontFamily={FONT} fontSize="14">
         θ1
       </text>
-      <text x={ox + 72} y={oy - 52} fill={TEAL} fontFamily={FONT} fontSize="14">
+      <text x={t2x + 4} y={t2y + 4} fill={TEAL} fontFamily={FONT} fontSize="14">
         θ2
       </text>
 
