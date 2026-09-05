@@ -92,6 +92,18 @@ describe("solve body", () => {
     expect(json).not.toHaveProperty("probe_Tw_K");
   });
 
+  it("posts pinj plus either hinj or ṁ — never power as a free key", () => {
+    const hinj = solveBodyJson({ ...base, mode: "enthalpy" });
+    expect(hinj.hinj_MJ_kg).toBe(23);
+    expect(hinj).not.toHaveProperty("mdot_mg_s");
+    expect(hinj).not.toHaveProperty("power_W");
+    expect(hinj).not.toHaveProperty("power");
+    const gen = solveBodyJson({ ...base, mode: "generator" });
+    expect(gen.mdot_mg_s).toBe(13);
+    expect(gen).not.toHaveProperty("hinj_MJ_kg");
+    expect(gen).not.toHaveProperty("power_W");
+  });
+
   it("Advanced can post auto or sudden_freeze and p_tank_Pa", () => {
     const auto = solveBodyJson({ ...base, layer: "advanced", plumeMode: "auto", p_tank_Pa: 10 });
     expect(auto.plume_mode).toBe("auto");

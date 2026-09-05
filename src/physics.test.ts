@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   clampProbeYm,
+  exitXO,
   faceMatchesSolve,
   fmtTankPa,
   incidentRamFlux,
+  nOFromFrozen,
   parsePlumeProbe,
   PINJ_SLIDER_STEPS,
   pinjPaToSlider,
@@ -116,6 +118,22 @@ describe("pinj log slider", () => {
     expect(sliderToPinjPa(t100, min, max, step)).toBe(100);
     expect(sliderToPinjPa(0, min, max, step)).toBe(min);
     expect(sliderToPinjPa(PINJ_SLIDER_STEPS, min, max, step)).toBe(max);
+  });
+});
+
+describe("frozen-exit n_O", () => {
+  it("reads x_O or mole_fractions.O and does not invent a missing O fraction", () => {
+    expect(exitXO({ x_O: 0.944, mole_fractions: { O: 0.9 } })).toBeCloseTo(0.944);
+    expect(exitXO({ mole_fractions: { O: 0.12 } })).toBeCloseTo(0.12);
+    expect(exitXO({ mole_fractions: { He: 1 } })).toBeNull();
+    expect(exitXO({ mole_fractions: {} })).toBeNull();
+    expect(exitXO({ x_O: 0, mole_fractions: { He: 1 } })).toBe(0);
+    expect(exitXO(undefined)).toBeNull();
+  });
+
+  it("is n_O = (n/n0) · n0 · x_O", () => {
+    expect(nOFromFrozen(0.2, 1.2e20, 0.944)).toBeCloseTo(0.2 * 1.2e20 * 0.944);
+    expect(nOFromFrozen(0, 1e20, 0.9)).toBe(0);
   });
 });
 

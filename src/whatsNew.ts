@@ -1,7 +1,9 @@
-/** Compact 1.0.0 notes for the Model page. Keep in lockstep with CHANGELOG.md. */
-export const WHATS_NEW_DATE = "2026-08-30";
+/** Compact notes for the Model page. Keep in lockstep with CHANGELOG.md. */
+export const WHATS_NEW_DATE = "2026-09-05";
 
 export const WHATS_NEW: readonly string[] = [
+  "Beta Plume Live: pinj + hinj|ṁ sliders re-solve; power is computed; optional He/O₂ mole mix",
+  "Station n_O (m⁻³) from frozen-exit x_O; field chip when CEA returns O",
   "n0 and coupled generator power on the strip after Run",
   "Chamber pinj in Pa only (no Pa|kPa chips)",
   "Empty numeric drafts no longer write 0",

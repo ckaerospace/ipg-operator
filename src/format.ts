@@ -40,6 +40,20 @@ export function fmtN0(n0: number | null | undefined): string {
   return `${n0.toExponential(1).replace("e+", "e")} m⁻³`;
 }
 
+/** Atomic oxygen number density. 0 is a real value; missing is "—". */
+export function fmtNO(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n) || n < 0) return "—";
+  if (n === 0) return "0 m⁻³";
+  return fmtN0(n);
+}
+
+/** Isoline / colorbar tick for n_O (no unit — the bar label carries m⁻³). */
+export function fmtNOCompact(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n === 0) return "0";
+  return n.toExponential(1).replace("e+", "e");
+}
+
 /** Coupled generator power: cea.power_W, else ṁ (mg/s) × hinj (MJ/kg) = W. */
 export function coupledPowerW(cea: {
   power_W?: number;

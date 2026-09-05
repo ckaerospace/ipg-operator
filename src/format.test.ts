@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coupledPowerW, fmtN0, fmtPinjPa, fmtPinjTick, fmtPower } from "./format";
+import { coupledPowerW, fmtN0, fmtNO, fmtNOCompact, fmtPinjPa, fmtPinjTick, fmtPower } from "./format";
 
 describe("fmtPinjPa", () => {
   it("stays in pascals and does not auto-promote at 1000", () => {
@@ -19,6 +19,17 @@ describe("fmtN0", () => {
     expect(fmtN0(1e20)).toBe("1.0e20 m⁻³");
     expect(fmtN0(undefined)).toBe("—");
     expect(fmtN0(Number.NaN)).toBe("—");
+  });
+});
+
+describe("fmtNO", () => {
+  it("prints SI number density and keeps 0 distinct from missing", () => {
+    expect(fmtNO(2.4e19)).toBe("2.4e19 m⁻³");
+    expect(fmtNO(0)).toBe("0 m⁻³");
+    expect(fmtNO(null)).toBe("—");
+    expect(fmtNO(undefined)).toBe("—");
+    expect(fmtNOCompact(2.4e19)).toBe("2.4e19");
+    expect(fmtNOCompact(0)).toBe("0");
   });
 });
 

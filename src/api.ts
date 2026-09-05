@@ -32,18 +32,31 @@ function detailMessage(body: unknown): string {
   return "Request failed";
 }
 
+export function isAbortError(e: unknown): boolean {
+  return e instanceof Error && e.name === "AbortError";
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit,
   onSlow?: () => void,
 ): Promise<T> {
   const ctrl = new AbortController();
+  const incoming = init.signal;
+  if (incoming) {
+    if (incoming.aborted) ctrl.abort();
+    else incoming.addEventListener("abort", () => ctrl.abort(), { once: true });
+  }
+  const { signal: _ignored, ...rest } = init;
   const wake = window.setTimeout(() => onSlow?.(), WAKE_MS);
   try {
+    if (ctrl.signal.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     const res = await fetch(`${API_BASE}${path}`, {
-      ...init,
+      ...rest,
       signal: ctrl.signal,
-      headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+      headers: { "Content-Type": "application/json", ...(rest.headers ?? {}) },
     });
     const body = await parseBody(res);
     if (!res.ok) {
@@ -75,13 +88,26 @@ export type SolveBody = {
   probe_Tw_K?: number;
 };
 
-export async function postSolve(body: SolveBody, onSlow?: () => void): Promise<SolveResponse> {
+export async function postSolve(
+  body: SolveBody,
+  onSlow?: () => void,
+  signal?: AbortSignal,
+): Promise<SolveResponse> {
   try {
-    return await apiFetch<SolveResponse>("/api/solve", { method: "POST", body: JSON.stringify(body) }, onSlow);
+    return await apiFetch<SolveResponse>(
+      "/api/solve",
+      { method: "POST", body: JSON.stringify(body), signal },
+      onSlow,
+    );
   } catch (e) {
+    if (isAbortError(e)) throw e;
     if (e instanceof ApiError && e.status === 422 && body.probe_x_m != null) {
       const { probe_x_m: _x, probe_r_mm: _r, probe_Tw_K: _t, ...rest } = body;
-      return apiFetch<SolveResponse>("/api/solve", { method: "POST", body: JSON.stringify(rest) }, onSlow);
+      return apiFetch<SolveResponse>(
+        "/api/solve",
+        { method: "POST", body: JSON.stringify(rest), signal },
+        onSlow,
+      );
     }
     throw e;
   }

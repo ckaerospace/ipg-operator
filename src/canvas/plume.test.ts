@@ -5,6 +5,8 @@ import {
   fitView,
   MACH_DISK_LABEL,
   pinchPlumeView,
+  plumeField,
+  sampleProbe,
   snapStationYCss,
   AXIS_SNAP_PX,
   SHOCK_OVERLAY,
@@ -277,6 +279,31 @@ describe("pinchPlumeView", () => {
     const out = pinchPlumeView(bounds, 390, 390, mid, 160, mid, 40, bounds);
     expect(out.x1 - out.x0).toBeCloseTo(1);
     expect(out.x0).toBeCloseTo(bounds.x0);
+  });
+});
+
+describe("plumeField n_O", () => {
+  it("scales n/n0 by n0 · x_O and stays null-safe when CEA omits O", () => {
+    const pl = gridPlume({ n_ratio: Array.from({ length: 11 * 6 }, () => 0.25), n0: 1e20 });
+    const withO: SolveResponse = {
+      cea: {
+        pinj_Pa: 100,
+        hinj_MJ_kg: 23,
+        mdot_mg_s: 13,
+        exit: { T0: 2000, U0: 3000, MW: 16, gamma: 1.4, R: 520, mole_fractions: { O: 0.8 }, x_O: 0.8 },
+      },
+      plume: pl,
+    };
+    const noO: SolveResponse = {
+      ...withO,
+      cea: { ...withO.cea, exit: { ...withO.cea.exit, x_O: undefined, mole_fractions: { He: 1 } } },
+    };
+    const arr = plumeField(withO, "n_O");
+    expect(arr[0]).toBeCloseTo(0.25 * 1e20 * 0.8);
+    expect(plumeField(noO, "n_O").every((v) => Number.isNaN(v))).toBe(true);
+    const sample = sampleProbe(withO, 0, 0);
+    expect(sample?.n_O).toBeCloseTo(0.25 * 1e20 * 0.8);
+    expect(sampleProbe(noO, 0, 0)?.n_O).toBeNull();
   });
 });
 

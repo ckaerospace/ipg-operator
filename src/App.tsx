@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, postCharacteristics, postSolve } from "./api";
+import { ApiError, isAbortError, postCharacteristics, postSolve } from "./api";
 import { MapTab } from "./components/MapTab";
 import { PlumeTab } from "./components/PlumeTab";
 import { SetupTab } from "./components/SetupTab";
@@ -28,6 +28,7 @@ import {
   type CustomMix,
 } from "./mixture";
 import { coupledPowerW, fmt, fmtFixed, fmtMdot, fmtN0, fmtPower } from "./format";
+import { LIVE_SOLVE_DEBOUNCE_MS, liveChromeVisible, type LivePatch } from "./live";
 import { operatorLayer, readLayer, writeLayer, type AppLayer } from "./layer";
 import {
   clampDiskRmm,
@@ -37,10 +38,10 @@ import {
   jetMatch,
   P_TANK_DEFAULT,
   PROBE_TW_K,
-  TANK_SOLVE_DEBOUNCE_MS,
 } from "./physics";
 import { mapCharacteristicsKey } from "./mapCache";
 import { hydrateShareObject, parseShareSearch, shareUrl } from "./shareUrl";
+import { IS_BETA } from "./version";
 import { buildSolveBody } from "./solveBody";
 import type {
   CharacteristicsResponse,
@@ -81,6 +82,8 @@ type SolveOverride = {
   goPlume?: boolean;
   pTank?: number;
   plumeMode?: PlumeMode;
+  gas?: GasId;
+  customMix?: CustomMix;
 };
 
 function readBoot(): Boot {
@@ -134,7 +137,15 @@ export default function App() {
   const [hinj, setHinj] = useState(boot.hinj);
   const [pTank, setPTank] = useState(boot.pTank);
   const pTankRef = useRef(pTank);
-  const tankDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pinjRef = useRef(pinj);
+  const hinjRef = useRef(hinj);
+  const mdotRef = useRef(mdotMg);
+  const modeRef = useRef(mode);
+  const gasRef = useRef(gas);
+  const mixRef = useRef(customMix);
+  const liveDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const solveAbort = useRef<AbortController | null>(null);
+  const solveGen = useRef(0);
   const runSolveRef = useRef<(override?: SolveOverride) => Promise<void>>(async () => {});
   const [layer, setLayer] = useState<AppLayer>(boot.layer);
   const [diskX, setDiskX] = useState<number | null>(boot.diskX);
@@ -194,20 +205,24 @@ export default function App() {
     setGas(id);
   };
 
-  const clearTankDebounce = useCallback(() => {
-    if (tankDebounce.current != null) {
-      clearTimeout(tankDebounce.current);
-      tankDebounce.current = null;
+  const clearLiveDebounce = useCallback(() => {
+    if (liveDebounce.current != null) {
+      clearTimeout(liveDebounce.current);
+      liveDebounce.current = null;
     }
   }, []);
 
   const runSolve = useCallback(
     async (override?: SolveOverride) => {
-      const mix = resolveMixture(gas, customMix);
+      const mix = resolveMixture(override?.gas ?? gas, override?.customMix ?? customMix);
       if (!mix) {
         setError("Enter at least one mole fraction.");
         return;
       }
+      solveAbort.current?.abort();
+      const ctrl = new AbortController();
+      solveAbort.current = ctrl;
+      const gen = ++solveGen.current;
       const m = override?.mode ?? mode;
       const p = override?.pinj ?? pinj;
       const h = override?.hinj ?? hinj;
@@ -238,16 +253,25 @@ export default function App() {
             probe_r_mm: sentR,
             probe_Tw_K: diskTw,
           }),
-          () => setWaking(true),
+          () => {
+            if (gen === solveGen.current) setWaking(true);
+          },
+          ctrl.signal,
         );
+        if (gen !== solveGen.current) return;
         setSolve(res);
         setSolvedFace(sentX != null && Number.isFinite(sentX) ? { x: sentX, r: sentR } : null);
+        pinjRef.current = res.cea.pinj_Pa;
         setPinj(res.cea.pinj_Pa);
+        hinjRef.current = res.cea.hinj_MJ_kg;
         setHinj(res.cea.hinj_MJ_kg);
-        if (res.cea.mdot_mg_s) setMdotMg(res.cea.mdot_mg_s);
+        if (res.cea.mdot_mg_s) {
+          mdotRef.current = res.cea.mdot_mg_s;
+          setMdotMg(res.cea.mdot_mg_s);
+        }
         if (advanced) {
           const tankEcho = res.plume.p_tank_Pa ?? res.p_tank_Pa;
-          const stale = tankDebounce.current != null || pTankRef.current !== sentTank;
+          const stale = liveDebounce.current != null || pTankRef.current !== sentTank;
           if (!stale && typeof tankEcho === "number" && Number.isFinite(tankEcho)) {
             const echoed = clampTankPa(tankEcho);
             pTankRef.current = echoed;
@@ -256,10 +280,13 @@ export default function App() {
         }
         if (override?.goPlume) setTab("plume");
       } catch (e) {
+        if (isAbortError(e) || gen !== solveGen.current) return;
         setError(e instanceof Error ? e.message : "Solve failed");
       } finally {
-        setRunning(false);
-        setWaking(false);
+        if (gen === solveGen.current) {
+          setRunning(false);
+          setWaking(false);
+        }
       }
     },
     [advanced, layer, mode, pinj, hinj, mdotMg, plumeMode, gas, customMix, geom.d_c_mm, geom.d_t_mm, geom.d_e_mm, geom.nozzle_name, showDisk, diskX, effectiveDiskR, diskTw],
@@ -268,27 +295,99 @@ export default function App() {
   useEffect(() => {
     pTankRef.current = pTank;
   }, [pTank]);
+  useEffect(() => {
+    pinjRef.current = pinj;
+  }, [pinj]);
+  useEffect(() => {
+    hinjRef.current = hinj;
+  }, [hinj]);
+  useEffect(() => {
+    mdotRef.current = mdotMg;
+  }, [mdotMg]);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+  useEffect(() => {
+    gasRef.current = gas;
+  }, [gas]);
+  useEffect(() => {
+    mixRef.current = customMix;
+  }, [customMix]);
 
   useEffect(() => {
     runSolveRef.current = runSolve;
   }, [runSolve]);
 
-  useEffect(() => {
-    if (!advanced) clearTankDebounce();
-  }, [advanced, clearTankDebounce]);
+  useEffect(() => () => {
+    clearLiveDebounce();
+    solveAbort.current?.abort();
+  }, [clearLiveDebounce]);
 
-  useEffect(() => () => clearTankDebounce(), [clearTankDebounce]);
+  const flushLiveSolve = useCallback(() => {
+    clearLiveDebounce();
+    void runSolveRef.current({
+      mode: modeRef.current,
+      pinj: pinjRef.current,
+      hinj: hinjRef.current,
+      mdot: mdotRef.current,
+      pTank: pTankRef.current,
+      gas: gasRef.current,
+      customMix: mixRef.current,
+    });
+  }, [clearLiveDebounce]);
+
+  const scheduleLiveSolve = useCallback(
+    (immediate = false) => {
+      clearLiveDebounce();
+      if (immediate) {
+        flushLiveSolve();
+        return;
+      }
+      liveDebounce.current = setTimeout(() => {
+        liveDebounce.current = null;
+        flushLiveSolve();
+      }, LIVE_SOLVE_DEBOUNCE_MS);
+    },
+    [clearLiveDebounce, flushLiveSolve],
+  );
+
+  const applyLivePatch = useCallback(
+    (patch: LivePatch, flush = false) => {
+      if (patch.pinj != null) {
+        pinjRef.current = patch.pinj;
+        setPinj(patch.pinj);
+      }
+      if (patch.hinj != null) {
+        hinjRef.current = patch.hinj;
+        setHinj(patch.hinj);
+      }
+      if (patch.mdot != null) {
+        mdotRef.current = patch.mdot;
+        setMdotMg(patch.mdot);
+      }
+      if (patch.mode != null) {
+        modeRef.current = patch.mode;
+        setMode(patch.mode);
+      }
+      if (patch.gas != null) {
+        gasRef.current = patch.gas;
+        setGas(patch.gas);
+      }
+      if (patch.customMix != null) {
+        mixRef.current = patch.customMix;
+        setCustomMix(patch.customMix);
+      }
+      scheduleLiveSolve(flush);
+    },
+    [scheduleLiveSolve],
+  );
 
   const onPlumeTank = (p: number) => {
     const next = clampTankPa(p);
     pTankRef.current = next;
     setPTank(next);
     if (!advanced) return;
-    clearTankDebounce();
-    tankDebounce.current = setTimeout(() => {
-      tankDebounce.current = null;
-      void runSolveRef.current({ pTank: pTankRef.current });
-    }, TANK_SOLVE_DEBOUNCE_MS);
+    scheduleLiveSolve(false);
   };
 
   useEffect(() => {
@@ -486,6 +585,7 @@ export default function App() {
             advanced={advanced}
             plumeMode={plumeMode}
             onPlotKernel={(m) => {
+              clearLiveDebounce();
               setPlumeMode(m);
               void runSolve({ plumeMode: m });
             }}
@@ -498,6 +598,27 @@ export default function App() {
             solvedFace={solvedFace}
             pTank={pTank}
             onPTank={onPlumeTank}
+            live={
+              liveChromeVisible(IS_BETA)
+                ? {
+                    running,
+                    mode,
+                    gas,
+                    customMix,
+                    pinj,
+                    hinj,
+                    mdot_mg_s: mdotMg,
+                    family,
+                    pinjLim: pLim,
+                    mdotLim: mLim,
+                    onPatch: applyLivePatch,
+                    onFlush: flushLiveSolve,
+                    onKick: () => {
+                      if (!solve) scheduleLiveSolve(true);
+                    },
+                  }
+                : null
+            }
           />
         </section>
         <section className={`pane${tab === "map" ? " on" : ""}`} aria-hidden={tab !== "map"}>
@@ -522,7 +643,7 @@ export default function App() {
               loadMap(m);
             }}
             onRunPoint={(p, h) => {
-              clearTankDebounce();
+              clearLiveDebounce();
               setMode("enthalpy");
               setPinj(p);
               setHinj(clampHinj(h));
@@ -537,7 +658,7 @@ export default function App() {
         <button
           disabled={running || !mixOk}
           onClick={() => {
-            clearTankDebounce();
+            clearLiveDebounce();
             void runSolve();
           }}
         >

@@ -12,17 +12,33 @@ import {
 } from "../canvas/plume";
 import { viewsClose } from "../canvas/viewZoom";
 import { cssPoint, pairStats, PlotTouch, wheelScale } from "../gestures/plotTouch";
-import { fmt, fmtFixed, fmtHeatFlux, fmtPa } from "../format";
+import { clampHinj, HINJ_MJ_MAX, HINJ_MJ_MIN, HINJ_MJ_STEP, usesGrams } from "../facility";
+import { coupledPowerW, fmt, fmtFixed, fmtHeatFlux, fmtMdot, fmtNO, fmtPa, fmtPinjPa, fmtPower } from "../format";
+import {
+  assignFromMode,
+  customMixFromHeMole,
+  heMixLabel,
+  heMoleFrac,
+  heO2MixOpen,
+  modeFromAssign,
+  readLiveConfirmSeen,
+  writeLiveConfirmSeen,
+  type LiveControls,
+} from "../live";
 import {
   clampDiskXm,
   clampProbeYm,
   estimateKnObj,
+  exitXO,
   faceMatchesSolve,
   fmtTankPa,
   KN_OBJ_TRIGGER,
   parseBarrel,
   parsePlumeProbe,
+  PINJ_SLIDER_STEPS,
+  pinjPaToSlider,
   regimeFromKnObj,
+  sliderToPinjPa,
   sliderToTankPa,
   tankPaToSlider,
   TANK_SLIDER_STEPS,
@@ -36,6 +52,7 @@ import { BugReportLink, ManualLink, RefsList } from "./RefsList";
 const FIELDS: { id: FieldId; lab: string }[] = [
   { id: "t_ratio", lab: "T/T0" },
   { id: "n_ratio", lab: "n/n0" },
+  { id: "n_O", lab: "n_O" },
   { id: "h_tot", lab: "h_tot" },
   { id: "speed", lab: "U" },
   { id: "mach", lab: "M" },
@@ -62,6 +79,7 @@ type Props = {
   solvedFace: { x: number; r: number } | null;
   pTank: number;
   onPTank: (p: number) => void;
+  live: LiveControls | null;
 };
 
 export function PlumeTab({
@@ -84,6 +102,7 @@ export function PlumeTab({
   solvedFace,
   pTank,
   onPTank,
+  live,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -98,8 +117,11 @@ export function PlumeTab({
   const pinchView = useRef<View | null>(null);
   const paintRef = useRef<() => void>(() => {});
   const [field, setField] = useState<FieldId>("n_ratio");
+  const [liveOn, setLiveOn] = useState(false);
+  const [liveConfirm, setLiveConfirm] = useState(false);
   const [legend, setLegend] = useState(false);
   const [zoomed, setZoomed] = useState(false);
+  const fitKeyRef = useRef<string | null>(null);
   const [shockOverlayOn, setShockOverlayOn] = useState(true);
   const [chipBox, setChipBox] = useState<{ l: number; t: number; w: number; h: number } | null>(null);
   const probeScrollRef = useRef<HTMLDivElement>(null);
@@ -116,10 +138,13 @@ export function PlumeTab({
     shockApplied: solve?.plume.shock_applied,
   });
   const showPlotChips = plotPhysicsVisible(advanced);
+  const xO = solve ? exitXO(solve.cea.exit) : null;
+  const fieldChips = FIELDS.filter((f) => f.id !== "n_O" || xO != null);
+  const shownField: FieldId = field === "n_O" && xO == null ? "n_ratio" : field;
 
   useEffect(() => {
-    fieldRef.current = field;
-  }, [field]);
+    fieldRef.current = shownField;
+  }, [shownField]);
   useEffect(() => {
     diskRef.current = showDisk && diskX != null ? { x: diskX, r: diskR / 1000 } : null;
   }, [showDisk, diskX, diskR]);
@@ -139,9 +164,13 @@ export function PlumeTab({
   useEffect(() => {
     const fitted = solve ? fitView(solve.plume, dc, dt, de) : emptyView(dc, dt, de);
     fittedRef.current = fitted;
-    viewRef.current = fitted;
-    pinchView.current = null;
-    setZoomed(false);
+    const key = solve ? `${dc}|${dt}|${de}` : null;
+    if (key !== fitKeyRef.current) {
+      fitKeyRef.current = key;
+      viewRef.current = fitted;
+      pinchView.current = null;
+      setZoomed(false);
+    }
   }, [solve, dc, dt, de]);
 
   useEffect(() => {
@@ -216,7 +245,7 @@ export function PlumeTab({
       ro.disconnect();
       canvas.removeEventListener("wheel", onWheel);
     };
-  }, [visible, solve, dc, dt, de, field, advanced, showDisk, diskX, probeY, diskR, shockOverlayOn, diskLive]);
+  }, [visible, solve, dc, dt, de, shownField, advanced, showDisk, diskX, probeY, diskR, shockOverlayOn, diskLive]);
 
   const toWorld = (e: PE<HTMLCanvasElement>) => {
     const map = mapRef.current;
@@ -351,8 +380,8 @@ export function PlumeTab({
   return (
     <>
       <div className="toolbar">
-        {FIELDS.map((f) => (
-          <button key={f.id} className={`chip${field === f.id ? " on" : ""}`} onClick={() => setField(f.id)}>
+        {fieldChips.map((f) => (
+          <button key={f.id} className={`chip${shownField === f.id ? " on" : ""}`} onClick={() => setField(f.id)}>
             {f.lab}
           </button>
         ))}
@@ -364,12 +393,31 @@ export function PlumeTab({
         >
           i
         </button>
+        {live && (
+          <button
+            type="button"
+            className={`chip${liveOn ? " on" : ""}`}
+            aria-pressed={liveOn}
+            onClick={() => {
+              if (liveOn) {
+                setLiveOn(false);
+                setLiveConfirm(false);
+                return;
+              }
+              setLiveOn(true);
+              if (!readLiveConfirmSeen()) setLiveConfirm(true);
+              live.onKick();
+            }}
+          >
+            Live
+          </button>
+        )}
       </div>
-      {running && (
+      {running && !(live && liveOn) && (
         <div className="plume-status">{waking ? "waking chemistry server" : "Solving…"}</div>
       )}
       <div className="plume-slot">
-        <div className="plume-wrap" ref={wrapRef}>
+        <div className={`plume-wrap${live && liveOn ? " live-on" : ""}`} ref={wrapRef}>
           <canvas
             ref={canvasRef}
             onPointerDown={onDown}
@@ -441,6 +489,16 @@ export function PlumeTab({
           <span className="tank-val">{fmtTankPa(pTank)}</span>
         </div>
       )}
+      {live && liveOn && (
+        <LiveSheet
+          live={live}
+          confirm={liveConfirm}
+          onDismissConfirm={() => {
+            writeLiveConfirmSeen();
+            setLiveConfirm(false);
+          }}
+        />
+      )}
       <div className={`probe-panel${probeOverflow ? " overflow" : ""}`}>
         <div className="probe-scroll" ref={probeScrollRef}>
         <div className="probe-grid">
@@ -462,6 +520,7 @@ export function PlumeTab({
           />
           <Cell l="T" v={sample ? `${fmt(sample.T, 0)} K` : "—"} />
           <Cell l="n/n0" v={sample ? fmtFixed(sample.n_ratio, 3) : "—"} />
+          <Cell l="n_O" v={sample ? fmtNO(sample.n_O) : "—"} />
           <Cell l="U" v={sample ? `${fmt(sample.U, 0)} m/s` : "—"} />
           <Cell l="Mach" v={sample ? fmtFixed(sample.mach, 2) : "—"} />
           <Cell l="Kn" v={sample ? sample.kn.toPrecision(3) : "—"} />
@@ -490,8 +549,9 @@ export function PlumeTab({
             <p>
               T0 is the frozen nozzle-exit translational temperature (CEA station 4), not the chamber. U0 is the frozen
               exit bulk velocity. Thesis is the Khasawneh–Cai 2-D planar collisionless jet, mirrored about y = 0 for
-              display — not axisymmetric. Color is a bilinear
-              sample of the selected field on the nx×ny grid; faint n/n0 is masked so the far field stays dark. Thin
+              display — not axisymmetric.               Color is a bilinear
+              sample of the selected field on the nx×ny grid (n_O is (n/n0)·n0·x_O from the frozen CEA exit — hidden
+              if CEA omits O); faint n/n0 is masked so the far field stays dark. Thin
               isolines are marching squares of that same grid. Levels are ~10–12 1–2–5 steps of the selected field in
               the current millimetre window (log decades if that window spans more than 10×). Pinch packs more curves
               in the visible span — the colorbar stays the full-field range. Pinch zooms the millimetre map about the
@@ -504,8 +564,8 @@ export function PlumeTab({
             </p>
             <p>
               Station: tap anywhere on the plume — Thesis or Advanced, Object None or Probe. That pick is a field
-              sample at (x, y), not a probe and not a Mach disk. Incident T, n, U, M, Kn, E, p_ram, and q_inc update
-              at (x, |y|). p_ram = n m U² and q_inc = ½ n m U³ are free-stream fluxes, not plate-face numbers.
+              sample at (x, y), not a probe and not a Mach disk.               Incident T, n, n_O, U, M, Kn, E, p_ram, and q_inc update
+              at (x, |y|). n_O is SI m⁻³ from frozen-exit x_O; missing O is "—". p_ram = n m U² and q_inc = ½ n m U³ are free-stream fluxes, not plate-face numbers.
               p_probe (plate face pressure) and q_probe (plate heat flux) appear only for Advanced Object Probe after
               Run at the tap’s x on the centerline plate — not tank p_∞ and not a field sample. Thesis
               has no probe chrome. Tap sets station (x, y); a pick near the axis snaps y to 0. Station x and y are
@@ -550,6 +610,137 @@ export function PlumeTab({
         <div className="plume-notes">Empty nozzle field — Run a point to fill the jet</div>
       )}
     </>
+  );
+}
+
+function LiveSheet({
+  live,
+  confirm,
+  onDismissConfirm,
+}: {
+  live: LiveControls;
+  confirm: boolean;
+  onDismissConfirm: () => void;
+}) {
+  const mixOpen = heO2MixOpen(live.gas, live.customMix);
+  const heMole = heMoleFrac(live.gas, live.customMix);
+  const assign = assignFromMode(live.mode);
+  const grams = usesGrams(live.family);
+  const mdotShow = grams ? live.mdot_mg_s / 1000 : live.mdot_mg_s;
+  const mdotMin = grams ? live.mdotLim.min / 1000 : live.mdotLim.min;
+  const mdotMax = grams ? live.mdotLim.max / 1000 : live.mdotLim.max;
+  const mdotStep = grams ? 0.01 : 0.1;
+  const power = coupledPowerW({ mdot_mg_s: live.mdot_mg_s, hinj_MJ_kg: live.hinj });
+  const other =
+    assign === "hinj"
+      ? `ṁ ${fmtMdot(live.mdot_mg_s, live.family)}`
+      : `hinj ${live.hinj.toFixed(1)} MJ/kg`;
+
+  return (
+    <div className="live-sheet">
+      {confirm && (
+        <div className="live-confirm">
+          <p>Sliders re-solve the plume. pinj + hinj|ṁ only; power is computed.</p>
+          <button type="button" className="chip on" onClick={onDismissConfirm}>
+            Got it
+          </button>
+        </div>
+      )}
+      {mixOpen && (
+        <div className="live-row">
+          <span className="name">He mole</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={Math.round(heMole * 100)}
+            aria-label="Helium mole percent in He O2"
+            onChange={(e) =>
+              live.onPatch({ gas: "custom", customMix: customMixFromHeMole(Number(e.target.value) / 100) })
+            }
+            onPointerUp={() => live.onFlush()}
+          />
+          <span className="val">{heMixLabel(heMole)}</span>
+        </div>
+      )}
+      <div className="live-row">
+        <span className="name">pinj</span>
+        <input
+          type="range"
+          min={0}
+          max={PINJ_SLIDER_STEPS}
+          step={1}
+          value={pinjPaToSlider(live.pinj, live.pinjLim.min, live.pinjLim.max)}
+          aria-label="Chamber pressure, logarithmic"
+          aria-valuemin={live.pinjLim.min}
+          aria-valuemax={live.pinjLim.max}
+          aria-valuenow={live.pinj}
+          onChange={(e) =>
+            live.onPatch({
+              pinj: sliderToPinjPa(Number(e.target.value), live.pinjLim.min, live.pinjLim.max, live.pinjLim.step),
+            })
+          }
+          onPointerUp={() => live.onFlush()}
+        />
+        <span className="val">{fmtPinjPa(live.pinj)}</span>
+      </div>
+      <div className="live-row">
+        <div className="live-assign" role="group" aria-label="Assign hinj or mass flow">
+          <button
+            type="button"
+            className={`chip${assign === "hinj" ? " on" : ""}`}
+            aria-pressed={assign === "hinj"}
+            onClick={() => live.onPatch({ mode: modeFromAssign("hinj") }, true)}
+          >
+            hinj
+          </button>
+          <button
+            type="button"
+            className={`chip${assign === "mdot" ? " on" : ""}`}
+            aria-pressed={assign === "mdot"}
+            onClick={() => live.onPatch({ mode: modeFromAssign("mdot") }, true)}
+          >
+            ṁ
+          </button>
+        </div>
+        {assign === "hinj" ? (
+          <input
+            type="range"
+            min={HINJ_MJ_MIN}
+            max={HINJ_MJ_MAX}
+            step={HINJ_MJ_STEP}
+            value={clampHinj(live.hinj)}
+            aria-label="Assigned hinj"
+            onChange={(e) => live.onPatch({ hinj: clampHinj(Number(e.target.value)) })}
+            onPointerUp={() => live.onFlush()}
+          />
+        ) : (
+          <input
+            type="range"
+            min={mdotMin}
+            max={mdotMax}
+            step={mdotStep}
+            value={Math.min(mdotMax, Math.max(mdotMin, mdotShow))}
+            aria-label="Mass flow"
+            onChange={(e) =>
+              live.onPatch({ mdot: grams ? Number(e.target.value) * 1000 : Number(e.target.value) })
+            }
+            onPointerUp={() => live.onFlush()}
+          />
+        )}
+        <span className="val">
+          {assign === "hinj" ? `${live.hinj.toFixed(1)} MJ/kg` : fmtMdot(live.mdot_mg_s, live.family)}
+        </span>
+      </div>
+      <div className="live-meta">
+        <span>
+          {other}
+          <span className="live-power"> · power {Number.isFinite(power) ? fmtPower(power) : "—"}</span>
+        </span>
+        {live.running ? <span className="live-solving">solving</span> : null}
+      </div>
+    </div>
   );
 }
 
