@@ -13,4 +13,13 @@ describe("renderEq", () => {
     expect(html).toContain("katex");
     expect(html).not.toContain("katex-display");
   });
+
+  it("renders stacked lip angles so phone width can show both", () => {
+    const html = renderEq(
+      "\\begin{aligned}\\theta_1 &= \\operatorname{atan2}(Y-H,\\,X),\\\\ \\theta_2 &= \\operatorname{atan2}(Y+H,\\,X)\\end{aligned}",
+      true,
+    );
+    expect(html).toContain("katex");
+    expect(html).not.toMatch(/KaTeX parse error|ParseError/i);
+  });
 });
