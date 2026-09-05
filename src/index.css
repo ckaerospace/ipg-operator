@@ -422,6 +422,9 @@ select {
   height: min(48vh, 340px);
   flex: none;
 }
+.plume-wrap.live-on {
+  height: min(38vh, 260px);
+}
 .plume-wrap canvas {
   position: absolute;
   inset: 0;
@@ -991,6 +994,86 @@ select {
   }
 }
 
+.live-sheet {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--line);
+  background: #0c1218;
+  padding: 4px 10px 6px;
+}
+.live-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+}
+.live-confirm p {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.live-confirm .chip {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.live-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+.live-row .name {
+  flex: 0 0 3.4rem;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.live-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  accent-color: var(--teal);
+}
+.live-row .val {
+  flex: 0 0 5.2rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text);
+}
+.live-assign {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+.live-assign .chip {
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.live-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.live-power {
+  color: var(--muted);
+}
+.live-solving {
+  color: var(--warn);
+  letter-spacing: 0.04em;
+}
+
 @media (min-width: 900px) {
   .app {
     max-width: 920px;
@@ -1003,5 +1086,8 @@ select {
   }
   .plume-wrap {
     height: min(64vh, 520px);
+  }
+  .plume-wrap.live-on {
+    height: min(52vh, 420px);
   }
 }

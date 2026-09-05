@@ -87,10 +87,25 @@ export function ModelPage() {
           <sub>tank</sub> (default {P_TANK_DEFAULT}&nbsp;Pa, clamp {P_TANK_MIN}–{P_TANK_MAX}&nbsp;Pa) is the
           background <i>p</i>
           <sub>∞</sub>; Object is None (default) or Probe. Setup keeps a number field and does not auto-Run when it
-          changes. The live control is a compact log slider on the Plume tab (tank pressure / <i>p</i>
-          <sub>∞</sub>), under the figure, not a second page. Thesis has no tank row, no NPR, no Plume slider, and no
+          changes. The tank control is a compact log slider on the Plume tab (tank pressure / <i>p</i>
+          <sub>∞</sub>), under the figure, not a second page. Thesis has no tank row, no NPR, no tank slider, and no
           probe editors.
         </p>
+        {IS_BETA ? (
+          <p>
+            Beta only: Plume <b>Live</b> is a chip next to the field chips. Off keeps Setup + Run. On, a slim sheet
+            under the figure assigns the CEA rocket’s two free knobs — <i>p</i>
+            <sub>inj</sub> and either <i>h</i>
+            <sub>inj</sub> or ṁ (segmented; the other value is a readout from the last solve). Coupled power is
+            displayed only (ṁ <i>h</i>
+            <sub>inj</sub> / strip coupling), never a third slider. A He/O₂ mole slider (same 70/30 language as the
+            named chip; API <span className="mono">basis: &quot;mole&quot;</span>) appears only for HeO2 or a
+            He+O₂-only custom mix. Sliders write the same state Setup and Map use. Drags debounce a solve (
+            {TANK_SOLVE_DEBOUNCE_MS}&nbsp;ms; pointer-up flushes); a newer value aborts the in-flight request. Station
+            (<i>x</i>, <i>y</i>) stays world-fixed. First enable shows a one-shot confirm stored as{" "}
+            <span className="mono">ipg-live-confirm</span>.
+          </p>
+        ) : null}
 
         <h2>2. NASA CEA, frozen exit</h2>
         <p>
@@ -126,7 +141,7 @@ export function ModelPage() {
           axisymmetric, not 3-D.
         </p>
         <p>
-          Color is a bilinear sample of the selected field (T/T0, n/n0, h_tot, U, M, E) on the{" "}
+          Color is a bilinear sample of the selected field (T/T0, n/n0, n_O, h_tot, U, M, E) on the{" "}
           <span className="mono">nx</span>×<span className="mono">ny</span> grid. Isolines are marching squares of
           that same grid. Isoline levels are ~10–12 even 1–2–5 steps of the selected field in the current millimetre
           window (equal log<sub>10</sub> when that window’s <i>hi</i>/<i>lo</i> ≥ 10). Pinch packs more curves in the
@@ -135,14 +150,21 @@ export function ModelPage() {
           the field chip, placing a station, or pinching is not a new CEA solve.
         </p>
         <p>
-          The Plume figure is full phone width at height <span className="mono">min(48vh, 340px)</span>. The
+          The Plume figure is full phone width at height <span className="mono">min(48vh, 340px)</span>
+          {IS_BETA ? (
+            <>
+              {" "}
+              (Live on: <span className="mono">min(38vh, 260px)</span>)
+            </>
+          ) : null}
+          . The
           millimetre map stays isotropic (1&nbsp;mm <i>x</i> = 1&nbsp;mm <i>y</i>); a wide wrap letterboxes and never
           stretches the jet. On a wide desktop the Plume figure is taller (<span className="mono">min(64vh, 520px)</span>);
           the phone height is unchanged. Pinch (two fingers) zooms about the pinch and pans; one finger stays the
           station pick. Double-tap or Reset restores the fitted window without moving the station. Ticks and isoline
           labels reflow on the current window and skip collisions (nozzle, Mach disk / “shock overlay” boxes, and each
           other). They are not capped at 5 — a fitted jet with ~12 curves can show more than five numbers, and pinch
-          keeps 1–2–5 labels on every plotted field (T/T0, n/n0, h_tot, U, M, E) in the current millimetre window, not
+          keeps 1–2–5 labels on every plotted field (T/T0, n/n0, n_O, h_tot, U, M, E) in the current millimetre window, not
           only n/n0. The station grid has a real
           row gap. The empty-state line (“Empty nozzle field — Run a point to fill the jet”) shows only when there is
           no solve. After a solve there is no slogan and no hinj footnote on the Plume tab — those facts stay in this
@@ -182,7 +204,12 @@ export function ModelPage() {
           0 (soft — drag off the band and it leaves). Two-finger pinch does not move it. The marker sits at that
           signed point. Station <i>x</i> and <i>y</i> are typed millimetres in the grid (same commit as a tap); there
           is no bulky editor above the jet. Empty numeric fields keep a string draft while focused and revert on blur
-          rather than becoming 0. The grid also shows <i>T</i>, n/n0, <i>U</i>, Mach, Kn, E (directed ½ <i>m</i>{" "}
+          rather than becoming 0.           The grid also shows <i>T</i>, n/n0, <span className="mono">n_O</span> (atomic oxygen number density, SI
+          m⁻³, from frozen-exit <i>x</i>
+          <sub>O</sub> as (<i>n</i>/<i>n</i>
+          <sub>0</sub>)·<i>n</i>
+          <sub>0</sub>·<i>x</i>
+          <sub>O</sub> — &quot;—&quot; if CEA omits O), <i>U</i>, Mach, Kn, E (directed ½ <i>m</i>{" "}
           <i>U</i>² in eV), E_O, e_th (1.5 <i>kT</i>), h_tot, <span className="mono">p_ram</span>, and{" "}
           <span className="mono">q_inc</span> from the bilinear sample at (<i>x</i>, |<i>y</i>|).{" "}
           <span className="mono">p_ram</span> = <i>n</i> <i>m</i> <i>U</i>² and <span className="mono">q_inc</span> = ½{" "}

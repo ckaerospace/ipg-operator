@@ -1,6 +1,6 @@
 import type { FieldId, ProbeSample, SolveResponse } from "../types";
-import { K_EV } from "../format";
-import { incidentRamFlux, parseBarrel, type Xy } from "../physics";
+import { fmtNOCompact, K_EV } from "../format";
+import { exitXO, incidentRamFlux, nOFromFrozen, parseBarrel, type Xy } from "../physics";
 import { colorize } from "./color";
 import { fieldIsoLevels, fieldIsolines, fmtIsoValue, niceIsoLevels, pickIsoLabels, stitchIso } from "./isolines";
 import { sampleGrid } from "./sample";
@@ -53,13 +53,24 @@ export const SHOCK_OVERLAY = {
 const FIELD_LABEL: Record<FieldId, string> = {
   t_ratio: "T / T0",
   n_ratio: "n / n0",
+  n_O: "n_O  m⁻³",
   h_tot: "h_tot  MJ/kg",
   speed: "U  m/s",
   mach: "Mach",
   e_kin: "E  eV",
 };
 
-function fieldArray(plume: SolveResponse["plume"], field: FieldId): number[] {
+/** Client-side field arrays. n_O is frozen-exit (n/n0)·n0·x_O — not an API grid. */
+export function plumeField(solve: SolveResponse, field: FieldId): number[] {
+  const plume = solve.plume;
+  if (field === "n_O") {
+    const xO = exitXO(solve.cea.exit);
+    const n0 = plume.n0;
+    if (xO == null || !Number.isFinite(n0) || !(n0 > 0)) {
+      return plume.n_ratio.map(() => Number.NaN);
+    }
+    return plume.n_ratio.map((r) => (Number.isFinite(r) ? nOFromFrozen(r, n0, xO) : Number.NaN));
+  }
   switch (field) {
     case "t_ratio":
       return plume.t_ratio;
@@ -74,6 +85,10 @@ function fieldArray(plume: SolveResponse["plume"], field: FieldId): number[] {
     case "e_kin":
       return plume.e_kin_eV;
   }
+}
+
+function fmtFieldIso(field: FieldId, v: number): string {
+  return field === "n_O" ? fmtNOCompact(v) : fmtIsoValue(v);
 }
 
 function fieldRange(plume: SolveResponse["plume"], arr: number[]): [number, number] {
@@ -561,6 +576,7 @@ function drawColorbar(
   lo: number,
   hi: number,
   label: string,
+  fmt: (v: number) => string = fmtIsoValue,
 ) {
   const x = map.plot.l + map.plot.w + 10;
   const y = map.plot.t;
@@ -578,8 +594,8 @@ function drawColorbar(
   ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText(fmtBar(hi), x + w + 4, y);
-  ctx.fillText(fmtBar(lo), x + w + 4, y + h);
+  ctx.fillText(fmt(hi), x + w + 4, y);
+  ctx.fillText(fmt(lo), x + w + 4, y + h);
   ctx.save();
   ctx.translate(x + w + 16, y + h / 2);
   ctx.rotate(-Math.PI / 2);
@@ -589,10 +605,6 @@ function drawColorbar(
   ctx.restore();
 }
 
-function fmtBar(v: number): string {
-  return fmtIsoValue(v);
-}
-
 let fieldScratch: HTMLCanvasElement | null = null;
 
 /** Bilinear color of the selected field only. Never tints cells by barrel / Mach disk. */
@@ -600,7 +612,7 @@ function drawFieldMap(
   ctx: CanvasRenderingContext2D,
   map: WorldMap,
   plume: SolveResponse["plume"],
-  field: FieldId,
+  arr: number[],
   lo: number,
   hi: number,
 ) {
@@ -610,7 +622,6 @@ function drawFieldMap(
   const img = ctx.createImageData(w, h);
   const data = img.data;
   const span = hi - lo || 1;
-  const arr = fieldArray(plume, field);
   const [bgR, bgG, bgB] = PLOT_BG;
 
   for (let j = 0; j < h; j++) {
@@ -654,12 +665,12 @@ function drawIsolines(
   ctx: CanvasRenderingContext2D,
   map: WorldMap,
   plume: SolveResponse["plume"],
+  arr: number[],
   field: FieldId,
   view: View,
   de: number,
   avoid: { x: number; y: number; w: number; h: number }[] = [],
 ) {
-  const arr = fieldArray(plume, field);
   const vis = fieldRangeInView(plume, arr, view) ?? fieldRange(plume, arr);
   const used = fieldIsoLevels(vis[0], vis[1]);
   const fallback = used.length ? used : niceIsoLevels(vis[0], vis[1]);
@@ -704,7 +715,7 @@ function drawIsolines(
     xMax: view.x1 - padX,
     yMax: view.y1 - padY,
     toPx: (x, y) => ({ x: map.toX(x), y: map.toY(y) }),
-    fmt: fmtIsoValue,
+    fmt: (v) => fmtFieldIso(field, v),
     avoid,
   });
   ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
@@ -756,10 +767,11 @@ export function drawPlumeFrame(opts: {
   let hi = 1;
   if (solve) {
     const pl = solve.plume;
-    [lo, hi] = fieldRange(pl, fieldArray(pl, field));
-    drawFieldMap(ctx, map, pl, field, lo, hi);
+    const arr = plumeField(solve, field);
+    [lo, hi] = fieldRange(pl, arr);
+    drawFieldMap(ctx, map, pl, arr, lo, hi);
     const shockPlan = showShocks ? shockOverlayPlan(map, solve) : null;
-    drawIsolines(ctx, map, pl, field, view, de, shockPlan?.boxes ?? []);
+    drawIsolines(ctx, map, pl, arr, field, view, de, shockPlan?.boxes ?? []);
     if (shockPlan) drawShocks(ctx, map, shockPlan);
   }
 
@@ -782,7 +794,7 @@ export function drawPlumeFrame(opts: {
 
   ctx.restore();
   drawAxes(ctx, map, view, cssH);
-  if (solve) drawColorbar(ctx, map, lo, hi, FIELD_LABEL[field]);
+  if (solve) drawColorbar(ctx, map, lo, hi, FIELD_LABEL[field], (v) => fmtFieldIso(field, v));
 
   if (probe) {
     const px = map.toX(probe.x);
@@ -814,7 +826,10 @@ export function sampleProbe(solve: SolveResponse, x: number, y: number): ProbeSa
   const h = sampleGrid(pl.h_tot_MJ_kg, pl.nx, pl.ny, pl.x, pl.y, x, yy);
   if (![n, tR, U, M, h].every(Number.isFinite)) return null;
   const T = tR * pl.T0;
-  const xO = solve.cea.exit.x_O ?? solve.cea.exit.mole_fractions?.O ?? 0;
+  const xO = exitXO(solve.cea.exit);
+  const n0 = pl.n0;
+  const nO =
+    xO != null && Number.isFinite(n0) && n0 > 0 && Number.isFinite(n) ? nOFromFrozen(n, n0, xO) : null;
   const flux = incidentRamFlux({
     n_ratio: n,
     n0: pl.n0,
@@ -828,10 +843,11 @@ export function sampleProbe(solve: SolveResponse, x: number, y: number): ProbeSa
     T,
     t_ratio: tR,
     n_ratio: n,
+    n_O: nO,
     U,
     mach: M,
     e_kin: E,
-    e_O: xO > 1e-4 && Number.isFinite(EO) ? EO : null,
+    e_O: xO != null && xO > 1e-4 && Number.isFinite(EO) ? EO : null,
     e_th: 1.5 * K_EV * T,
     h_tot: h,
     kn: pl.kn_gll_exit / Math.max(n, 1e-12),

@@ -8,7 +8,7 @@ export type SolveMode = "generator" | "enthalpy";
 export type PlumeMode = "auto" | "collisionless" | "sudden_freeze";
 /** Advanced Setup: whether a calorimeter probe sits in the jet. Wire value stays "disk". Thesis has no probe chrome. */
 export type JetObject = "none" | "disk";
-export type FieldId = "t_ratio" | "n_ratio" | "h_tot" | "speed" | "mach" | "e_kin";
+export type FieldId = "t_ratio" | "n_ratio" | "n_O" | "h_tot" | "speed" | "mach" | "e_kin";
 
 export type Mixture = Record<string, number>;
 
@@ -154,6 +154,8 @@ export type ProbeSample = {
   T: number;
   t_ratio: number;
   n_ratio: number;
+  /** Frozen-exit n_O = (n/n0)·n0·x_O. Null when CEA omits O. */
+  n_O: number | null;
   U: number;
   mach: number;
   e_kin: number;

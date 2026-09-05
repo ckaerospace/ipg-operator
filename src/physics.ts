@@ -1,4 +1,4 @@
-import type { SolveResponse } from "./types";
+import type { CeaExit, SolveResponse } from "./types";
 
 export const P_TANK_MIN = 0.1;
 export const P_TANK_MAX = 5000;
@@ -39,6 +39,22 @@ export function incidentRamFlux(opts: {
     return { p_ram_Pa: n * m * U * U, q_inc_W_m2: 0.5 * n * m * U * U * U };
   }
   return null;
+}
+
+/**
+ * Frozen-exit atomic oxygen mole fraction from CEA station 4.
+ * Uses `x_O` or `mole_fractions.O`. Missing → null (do not invent 0).
+ */
+export function exitXO(exit: Pick<CeaExit, "x_O" | "mole_fractions"> | null | undefined): number | null {
+  if (!exit) return null;
+  const raw = exit.x_O ?? exit.mole_fractions?.O;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) return raw;
+  return null;
+}
+
+/** Frozen composition: n_O = (n/n0) · n0 · x_O. SI m⁻³. */
+export function nOFromFrozen(n_ratio: number, n0: number, x_O: number): number {
+  return n_ratio * n0 * x_O;
 }
 
 export function clampTankPa(p: number): number {
