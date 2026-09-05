@@ -118,7 +118,7 @@ export function ModelPage() {
         <h2>4. Fluids 2021 integrands</h2>
         <p>
           Where thesis typesetting of the expanded moments is easy to mis-copy (√π versus π), the chemistry API stores
-          the Fluids 2021 A(t), B(t), C(t) form with t = S0 cos θ:
+          the Cai &amp; Cai, Fluids 6(7) 250 (2021) A(t), B(t), C(t) form with t = S0 cos θ:
         </p>
         <Eq
           math={

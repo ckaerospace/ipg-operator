@@ -60,6 +60,12 @@ export const REFS: RefItem[] = [
     label: "doi:10.1063/1.3490409",
   },
   {
+    id: "cai2021fluids",
+    cite: "Cai, S. & Cai, C. (2021). A simple gas-kinetic model for dilute and weakly charged plasma micro-jet flows. Fluids, 6(7), 250.",
+    href: "https://doi.org/10.3390/fluids6070250",
+    label: "doi:10.3390/fluids6070250",
+  },
+  {
     id: "crist1966",
     cite: "Crist, S., Sherman, P. M. & Glass, D. R. (1966). Study of the highly underexpanded sonic jet. AIAA Journal, 4(1), 68–71.",
     href: "https://doi.org/10.2514/3.3386",
@@ -91,7 +97,7 @@ export const REFS: RefItem[] = [
   },
 ];
 
-export const THESIS_REF_IDS = ["cea", "cea2", "cai2007a", "cai2007b", "khasawneh2010"];
+export const THESIS_REF_IDS = ["cea", "cea2", "cai2007a", "cai2007b", "khasawneh2010", "cai2021fluids"];
 export const ADVANCED_REF_IDS = [
   ...THESIS_REF_IDS,
   "billig1967",
