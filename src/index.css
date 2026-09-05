@@ -817,9 +817,67 @@ select {
   font-size: 14.5px;
 }
 .paper-body .eq {
-  font-size: 16px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15.5px;
   text-align: center;
-  padding: 8px 0 12px;
+  padding: 10px 2.2rem 12px 0.4rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  color: var(--text);
+  -webkit-overflow-scrolling: touch;
+}
+.paper-body .eq .katex,
+.paper-body .eq-inline .katex {
+  color: var(--text);
+}
+.paper-body .eq .katex-display {
+  margin: 0;
+}
+.paper-body .eq-math {
+  min-width: 0;
+}
+.paper-body .eq-num {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.paper-body .eq-inline {
+  display: inline;
+  color: var(--text);
+}
+.paper-body .eq-inline .katex {
+  font-size: 1.02em;
+}
+.paper-body .fig {
+  margin: 1.15em 0 1.2em;
+  background: var(--elev);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 10px 10px;
+}
+.paper-body .fig svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 36rem;
+  margin: 0 auto;
+}
+.paper-body .fig-cap {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+  font-style: normal;
+  margin: 0.55em 2px 0;
+}
+.paper-body figure.fig {
+  margin: 1.15em 0 1.2em;
 }
 .paper-body .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
