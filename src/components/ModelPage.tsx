@@ -112,7 +112,12 @@ export function ModelPage() {
           The speed ratio and the two lip angles (atan2 so X → 0<sup>+</sup> is defined) are
         </p>
         <Eq math={"S_0 = \\dfrac{U_0}{\\sqrt{2RT_0}}"} num="(3)" />
-        <Eq math={"\\theta_1 = \\operatorname{atan2}(Y-H,\\,X),\\quad \\theta_2 = \\operatorname{atan2}(Y+H,\\,X)"} num="(4)" />
+        <Eq
+          math={
+            "\\begin{aligned}\\theta_1 &= \\operatorname{atan2}(Y-H,\\,X),\\\\ \\theta_2 &= \\operatorname{atan2}(Y+H,\\,X)\\end{aligned}"
+          }
+          num="(4)"
+        />
         <FigSlit />
 
         <h2>4. Fluids 2021 integrands</h2>
